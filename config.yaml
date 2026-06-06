@@ -1,0 +1,296 @@
+window:
+  title_contains: "Clash of Clans"
+  title_match_mode: starts_with
+  activate_before_click: true
+
+runtime:
+  dry_run: false
+  poll_interval_seconds: 0.60
+  require_target_focus: true
+  focus_check_interval_seconds: 5
+  cv_profile: cv_13
+  stop_after_cycles: 0
+  max_next_attempts_per_cycle: 50
+  debug_dir: "debug_saida"
+  debug_images: errors_only
+
+vision:
+  template_confidence: 0.82
+  template_confidence_by_asset:
+    start_button: 0.50
+    procurar_partida: 0.50
+    search_button: 0.50
+    start_button_2: 0.60
+    return_button: 0.75
+  template_search_regions:
+    procurar_partida: {x_ratio: 0.05, y_ratio: 0.62, w_ratio: 0.26, h_ratio: 0.18}
+    search_button: {x_ratio: 0.02, y_ratio: 0.58, w_ratio: 0.28, h_ratio: 0.22}
+    start_button_2: {x_ratio: 0.74, y_ratio: 0.78, w_ratio: 0.23, h_ratio: 0.16}
+  ocr_enabled: true
+  ocr_engine: easyocr
+  resource_threshold: 1000000
+  resource_roi:
+    x: 20
+    y: 70
+    w: 460
+    h: 130
+  attack_loot_rois:
+    gold: {x_ratio: 0.060, y_ratio: 0.144, w_ratio: 0.115, h_ratio: 0.045}
+    elixir: {x_ratio: 0.060, y_ratio: 0.186, w_ratio: 0.115, h_ratio: 0.045}
+    dark_elixir: {x_ratio: 0.060, y_ratio: 0.228, w_ratio: 0.115, h_ratio: 0.045}
+  red_mask:
+    lower1: [0, 80, 60]
+    upper1: [10, 255, 255]
+    lower2: [170, 80, 60]
+    upper2: [180, 255, 255]
+
+assets:
+  start_button: "assets/start_button.png"
+  start_button_2: "assets/start_button_2.png"
+  procurar_partida: "assets/procurar_partida.png"
+  search_button: "assets/search_button.png"
+  next_button: "assets/next_button.png"
+  confirm_action_button: "assets/confirm_action_button.png"
+  end_action_button: "assets/end_action_button.png"
+  return_button: "assets/return_button.png"
+
+flow:
+  target_mode: direct_attack
+  attack_loot_minimums:
+    gold: 500000
+    elixir: 500000
+  pre_search_steps:
+    - start_button
+    - procurar_partida
+    - start_button_2
+  optional_pre_search_steps:
+    - start_button_2
+  pre_search_step_timeouts:
+    start_button: 3
+    procurar_partida: 3
+    start_button_2: 2
+  pre_search_step_after_delays:
+    start_button: 1.00
+    procurar_partida: 1.00
+    start_button_2: 1.00
+  use_confirm_action_button: false
+  use_end_action_button: false
+  use_return_button: false
+  battle_screen_delay_seconds: 5
+  next_base_delay_seconds: 2.5
+  post_deploy_min_seconds: 20
+  battle_finished_assets:
+    - return_button
+  return_steps:
+    - return_button
+  search_result_timeout_seconds: 30
+  action_timeout_seconds: 180
+
+deployment: &cv_13_deployment
+  enabled: true
+  mode: scripted
+  scripted:
+    click_delay_range_seconds: {min: 0.10, max: 0.30}
+    actions:
+      - type: select
+        name: "troop_2"
+        point: {x_ratio: 0.271, y_ratio: 0.903}
+      - type: scatter_line
+        count: 11
+        start: {x_ratio: 0.190, y_ratio: 0.420}
+        end: {x_ratio: 0.445, y_ratio: 0.078}
+        half_width_px: 20
+      - type: select
+        name: "troop_1"
+        point: {x_ratio: 0.216, y_ratio: 0.903}
+      - type: scatter_line
+        count: 11
+        start: {x_ratio: 0.190, y_ratio: 0.420}
+        end: {x_ratio: 0.445, y_ratio: 0.078}
+        half_width_px: 20
+      - type: select
+        name: "spell_a"
+        point: {x_ratio: 0.35, y_ratio: 0.883}
+        after_delay_seconds: 0.45
+      - type: click_points
+        points:
+          - {x_ratio: 0.337, y_ratio: 0.445}
+          - {x_ratio: 0.382, y_ratio: 0.385}
+          - {x_ratio: 0.425, y_ratio: 0.330}
+          - {x_ratio: 0.468, y_ratio: 0.270}
+          - {x_ratio: 0.510, y_ratio: 0.215}
+  candidate_order: red_boundary_outside
+  deploy_roi:
+    x: 180
+    y: 35
+    w: 1360
+    h: 770
+  points_per_side: 30
+  border_margin_px: 40
+  red_avoid_radius_px: 24
+  red_boundary_outside_offset_px: 20
+  red_boundary_sample_points: 140
+  red_boundary_min_pixels: 80
+  min_deploy_y_ratio: 0.18
+  prioritize_lateral_deploy: true
+  lateral_band_ratio: 0.32
+  deploy_until_exhausted: true
+  max_deploy_passes: 45
+  max_batches_per_troop: 90
+  clicks_per_troop_pass: 4
+  click_after_key_select: false
+  delay_after_troop_select_seconds: 0.08
+  available_saturation_threshold: 35
+  available_value_threshold: 35
+  available_color_pixel_saturation: 45
+  available_color_ratio_threshold: 0.20
+  troops:
+    - name: "slot_1"
+      x: 370
+      y: 945
+      batch_clicks: 4
+      available_color_ratio_threshold: 0.25
+      status_roi: {x: 335, y: 900, w: 58, h: 58}
+    - name: "slot_2"
+      x: 480
+      y: 945
+      batch_clicks: 4
+      available_color_ratio_threshold: 0.40
+      status_roi: {x: 445, y: 900, w: 58, h: 58}
+    - name: "slot_3"
+      x: 590
+      y: 945
+      batch_clicks: 4
+      available_color_ratio_threshold: 0.40
+      status_roi: {x: 555, y: 900, w: 58, h: 58}
+  clicks_per_item: 8
+
+cv_profiles:
+  cv_13:
+    deployment: *cv_13_deployment
+  cv_17:
+    deployment:
+      enabled: true
+      mode: scripted
+      scripted:
+        click_delay_range_seconds: {min: 0.10, max: 0.30}
+        actions:
+          # Passo 01
+          - type: scatter_line_counted
+            name: "cv17_slot_3_opening"
+            select_point: {x_ratio: 0.267, y_ratio: 0.903}
+            count: 2
+            start: {x_ratio: 0.170, y_ratio: 0.445}
+            end: {x_ratio: 0.420, y_ratio: 0.110}
+            half_width_px: 10
+          - type: select
+            name: "cv17_slot_7"
+            point: {x_ratio: 0.505, y_ratio: 0.903}
+          - type: click_points
+            points:
+              - {x_ratio: 0.215, y_ratio: 0.390}
+          - type: select
+            name: "cv17_slot_9"
+            point: {x_ratio: 0.622, y_ratio: 0.903}
+          - type: click_points
+            points:
+              - {x_ratio: 0.245, y_ratio: 0.350}
+
+          # Passo 02
+          - type: scatter_line_counted
+            name: "cv17_slot_2"
+            select_point: {x_ratio: 0.211, y_ratio: 0.903}
+            count: 12
+            start: {x_ratio: 0.170, y_ratio: 0.445}
+            end: {x_ratio: 0.420, y_ratio: 0.110}
+            half_width_px: 10
+          - type: scatter_line_counted
+            name: "cv17_slot_6"
+            select_point: {x_ratio: 0.442, y_ratio: 0.903}
+            count: 4
+            start: {x_ratio: 0.170, y_ratio: 0.445}
+            end: {x_ratio: 0.420, y_ratio: 0.110}
+            half_width_px: 10
+          - type: scatter_line_counted
+            name: "cv17_slot_1"
+            select_point: {x_ratio: 0.154, y_ratio: 0.903}
+            count: 5
+            start: {x_ratio: 0.170, y_ratio: 0.445}
+            end: {x_ratio: 0.420, y_ratio: 0.110}
+            half_width_px: 10
+          - type: scatter_line_counted
+            name: "cv17_slot_4"
+            select_point: {x_ratio: 0.326, y_ratio: 0.903}
+            count: 3
+            start: {x_ratio: 0.170, y_ratio: 0.445}
+            end: {x_ratio: 0.420, y_ratio: 0.110}
+            half_width_px: 10
+          - type: scatter_line_counted
+            name: "cv17_slot_5"
+            select_point: {x_ratio: 0.385, y_ratio: 0.903}
+            count: 2
+            start: {x_ratio: 0.170, y_ratio: 0.445}
+            end: {x_ratio: 0.420, y_ratio: 0.110}
+            half_width_px: 10
+          - type: scatter_line_counted
+            name: "cv17_slot_8"
+            select_point: {x_ratio: 0.573, y_ratio: 0.903}
+            count: 1
+            start: {x_ratio: 0.170, y_ratio: 0.445}
+            end: {x_ratio: 0.420, y_ratio: 0.110}
+            half_width_px: 10
+          - type: scatter_line_counted
+            name: "cv17_slot_10"
+            select_point: {x_ratio: 0.697, y_ratio: 0.903}
+            count: 1
+            start: {x_ratio: 0.170, y_ratio: 0.445}
+            end: {x_ratio: 0.420, y_ratio: 0.110}
+            half_width_px: 10
+          - type: scatter_line_counted
+            name: "cv17_slot_11"
+            select_point: {x_ratio: 0.759, y_ratio: 0.903}
+            count: 1
+            start: {x_ratio: 0.170, y_ratio: 0.445}
+            end: {x_ratio: 0.420, y_ratio: 0.110}
+            half_width_px: 10
+          - type: select
+            name: "cv17_slot_8_reselect"
+            point: {x_ratio: 0.573, y_ratio: 0.903}
+          - type: select
+            name: "cv17_slot_9_reselect"
+            point: {x_ratio: 0.635, y_ratio: 0.903}
+          - type: select
+            name: "cv17_slot_10_reselect"
+            point: {x_ratio: 0.697, y_ratio: 0.903}
+          - type: select
+            name: "cv17_slot_11_reselect"
+            point: {x_ratio: 0.759, y_ratio: 0.903}
+
+          # Passo 03
+          - type: scatter_line_counted
+            name: "cv17_slot_12"
+            select_point: {x_ratio: 0.813, y_ratio: 0.903}
+            count: 5
+            start: {x_ratio: 0.300, y_ratio: 0.511}
+            end: {x_ratio: 0.537, y_ratio: 0.196}
+            half_width_px: 10
+            after_delay_seconds: 0.30
+          - type: select
+            name: "cv17_slot_13"
+            point: {x_ratio: 0.882, y_ratio: 0.903}
+            after_delay_seconds: 0.35
+          - type: click_points
+            points:
+              - {x_ratio: 0.354, y_ratio: 0.362}
+              - {x_ratio: 0.500, y_ratio: 0.248}
+              - {x_ratio: 0.429, y_ratio: 0.302}
+
+clicking:
+  move_duration_seconds: 0.04
+  delay_between_clicks_seconds: 0.03
+  delay_after_button_seconds: 0.55
+  asset_fallbacks:
+    search_button: {x_ratio: 0.145, y_ratio: 0.705}
+    start_button_2: {x_ratio: 0.855, y_ratio: 0.860}
+    next_button: {x_ratio: 0.915, y_ratio: 0.860}
+    return_button: {x: 950, y: 890}

@@ -1,0 +1,146 @@
+window:
+  title_contains: "Google Play Games"
+  title_match_mode: contains
+  activate_before_click: true
+
+runtime:
+  dry_run: true
+  poll_interval_seconds: 0.60
+  require_target_focus: false
+  focus_check_interval_seconds: 15
+  cv_profile: cv_13
+  stop_after_cycles: 0
+  max_next_attempts_per_cycle: 50
+  debug_dir: "debug_saida"
+  debug_images: errors_only
+
+vision:
+  template_confidence: 0.82
+  template_confidence_by_asset:
+    search_button: 0.50
+    start_button_2: 0.60
+    return_button: 0.75
+  template_search_regions:
+    search_button: {x_ratio: 0.02, y_ratio: 0.58, w_ratio: 0.28, h_ratio: 0.22}
+    start_button_2: {x_ratio: 0.74, y_ratio: 0.78, w_ratio: 0.23, h_ratio: 0.16}
+  ocr_enabled: true
+  ocr_engine: pytesseract
+  resource_threshold: 1000000
+  resource_roi:
+    x: 20
+    y: 70
+    w: 460
+    h: 130
+  attack_loot_rois:
+    gold: {x_ratio: 0.060, y_ratio: 0.102, w_ratio: 0.115, h_ratio: 0.050}
+    elixir: {x_ratio: 0.060, y_ratio: 0.144, w_ratio: 0.115, h_ratio: 0.050}
+    dark_elixir: {x_ratio: 0.060, y_ratio: 0.186, w_ratio: 0.115, h_ratio: 0.050}
+  red_mask:
+    lower1: [0, 80, 60]
+    upper1: [10, 255, 255]
+    lower2: [170, 80, 60]
+    upper2: [180, 255, 255]
+
+assets:
+  start_button: "assets/start_button.png"
+  start_button_2: "assets/start_button_2.png"
+  search_button: "assets/search_button.png"
+  next_button: "assets/next_button.png"
+  confirm_action_button: "assets/confirm_action_button.png"
+  end_action_button: "assets/end_action_button.png"
+  return_button: "assets/return_button.png"
+
+flow:
+  target_mode: direct_attack
+  pre_search_steps:
+    - start_button
+    - search_button
+    - start_button_2
+  use_confirm_action_button: false
+  use_end_action_button: false
+  use_return_button: false
+  pre_search_step_timeouts:
+    start_button: 3
+    search_button: 1
+    start_button_2: 2
+  pre_search_step_after_delays:
+    start_button: 0.20
+    search_button: 0.10
+    start_button_2: 0.20
+  battle_screen_delay_seconds: 5
+  post_deploy_min_seconds: 20
+  battle_finished_assets:
+    - return_button
+  return_steps:
+    - return_button
+  search_result_timeout_seconds: 30
+  action_timeout_seconds: 180
+
+deployment:
+  enabled: true
+  candidate_order: red_boundary_outside
+  deploy_roi:
+    x: 0
+    y: 70
+    w: 1000
+    h: 540
+  points_per_side: 12
+  border_margin_px: 35
+  red_avoid_radius_px: 18
+  red_boundary_outside_offset_px: 20
+  red_boundary_sample_points: 140
+  red_boundary_min_pixels: 80
+  min_deploy_y_ratio: 0.18
+  prioritize_lateral_deploy: true
+  lateral_band_ratio: 0.32
+  deploy_until_exhausted: true
+  max_deploy_passes: 45
+  max_batches_per_troop: 90
+  clicks_per_troop_pass: 4
+  click_after_key_select: false
+  delay_after_troop_select_seconds: 0.08
+  available_saturation_threshold: 35
+  available_value_threshold: 35
+  available_color_pixel_saturation: 45
+  available_color_ratio_threshold: 0.20
+  troops:
+    - name: "slot_1"
+      x: 370
+      y: 945
+      batch_clicks: 4
+      available_color_ratio_threshold: 0.25
+      status_roi: {x: 335, y: 900, w: 58, h: 58}
+    - name: "slot_2"
+      x: 480
+      y: 945
+      batch_clicks: 4
+      available_color_ratio_threshold: 0.40
+      status_roi: {x: 445, y: 900, w: 58, h: 58}
+    - name: "slot_3"
+      x: 590
+      y: 945
+      batch_clicks: 4
+      available_color_ratio_threshold: 0.40
+      status_roi: {x: 555, y: 900, w: 58, h: 58}
+  clicks_per_item: 8
+
+cv_profiles:
+  cv_13:
+    deployment:
+      enabled: true
+  cv_17:
+    deployment:
+      enabled: true
+      mode: scripted
+      scripted:
+        click_delay_range_seconds: {min: 0.10, max: 0.30}
+        actions: []
+
+clicking:
+  move_duration_seconds: 0.04
+  delay_between_clicks_seconds: 0.07
+  delay_after_button_seconds: 0.55
+  asset_fallbacks:
+    search_button: {x_ratio: 0.145, y_ratio: 0.705}
+    start_button_2: {x_ratio: 0.855, y_ratio: 0.860}
+    return_button: {x: 950, y: 890}
