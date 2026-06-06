@@ -30,6 +30,7 @@ class BotDeploymentMixin:
 
     def calcular_pontos_deploy_seguro(self) -> list[tuple[int, int]]:
         """Calcula pontos seguros de deploy dentro da ROI configurada."""
+        self.checkpoint_controle()
         _, tela = self.capturar_tela()
         cfg_deploy = self.cfg['deployment']
         cfg_roi = cfg_deploy['deploy_roi']
@@ -95,17 +96,18 @@ class BotDeploymentMixin:
 
     def selecionar_tropa(self, retangulo: JanelaRetangulo, tropa: dict[str, Any]) -> None:
         """Seleciona uma tropa por tecla e/ou clique no card configurado."""
+        self.checkpoint_controle()
         nome = tropa.get('name', 'troop')
         cfg_deploy = self.cfg['deployment']
         tecla = tropa.get('key')
         if tecla:
             pressionar_tecla(str(tecla), dry_run=self.dry_run)
-            time.sleep(float(cfg_deploy.get('delay_after_troop_select_seconds', self.between)))
+            self.dormir_interrompivel(float(cfg_deploy.get('delay_after_troop_select_seconds', self.between)))
         deve_clicar_card = (not tecla) or bool(tropa.get('click_after_key', cfg_deploy.get('click_after_key_select', True)))
         if deve_clicar_card:
             logging.info('Clique no card da tropa=%s em (%s,%s)', nome, tropa['x'], tropa['y'])
             clicar_relativo(retangulo, int(tropa['x']), int(tropa['y']), dry_run=self.dry_run, duration=self.duration)
-            time.sleep(float(cfg_deploy.get('delay_after_troop_select_seconds', self.between)))
+            self.dormir_interrompivel(float(cfg_deploy.get('delay_after_troop_select_seconds', self.between)))
 
     def fazer_deploy_tropa_ate_esgotar(
         self,
@@ -122,6 +124,7 @@ class BotDeploymentMixin:
         indice = indice_inicial
 
         for numero_lote in range(1, max_lotes + 1):
+            self.checkpoint_controle()
             _, tela = self.capturar_tela()
             if not self.tropa_disponivel(tropa, tela):
                 logging.info('Tropa=%s esgotada; avancando para a proxima.', nome)
@@ -130,10 +133,11 @@ class BotDeploymentMixin:
             logging.info('Selecionando tropa=%s lote=%s/%s cliques=%s', nome, numero_lote, max_lotes, cliques_lote)
             self.selecionar_tropa(retangulo, tropa)
             for _ in range(cliques_lote):
+                self.checkpoint_controle()
                 x, y = pontos[indice % len(pontos)]
                 indice += 1
                 clicar_relativo(retangulo, x, y, dry_run=self.dry_run, duration=self.duration)
-                time.sleep(self.between)
+                self.dormir_interrompivel(self.between)
 
         logging.warning('max_batches_per_troop atingido para tropa=%s antes de detectar esgotamento.', nome)
         return indice
@@ -149,6 +153,7 @@ class BotDeploymentMixin:
             salvar_debug(self.diretorio_debug, 'troop_status_rois', desenhar_rois(tela, rois))
 
         for tropa in tropas:
+            self.checkpoint_controle()
             indice = self.fazer_deploy_tropa_ate_esgotar(retangulo, tropa, pontos, indice)
         logging.info('Sequencia de deploy concluida para todas as tropas configuradas.')
 
@@ -164,8 +169,9 @@ class BotDeploymentMixin:
 
     def clicar_ponto_roteiro(self, retangulo: JanelaRetangulo, x: int, y: int) -> None:
         """Clica em um ponto do roteiro respeitando o delay configurado."""
+        self.checkpoint_controle()
         clicar_relativo(retangulo, x, y, dry_run=self.dry_run, duration=self.duration)
-        time.sleep(self.calcular_atraso_clique_roteirizado())
+        self.dormir_interrompivel(self.calcular_atraso_clique_roteirizado())
 
     def montar_nome_debug_roteiro(self, sufixo: str) -> str:
         """Monta o nome do artefato de debug considerando o perfil CV ativo."""
@@ -193,6 +199,7 @@ class BotDeploymentMixin:
         pontos_debug: list[tuple[int, int]] = []
 
         for acao in acoes:
+            self.checkpoint_controle()
             tipo_acao = acao['type']
             if tipo_acao == 'select':
                 nome = acao.get('name', 'select')
@@ -200,7 +207,7 @@ class BotDeploymentMixin:
                 if tecla:
                     logging.info('Selecionando %s por tecla=%s', nome, tecla)
                     pressionar_tecla(str(tecla), dry_run=self.dry_run)
-                    time.sleep(self.calcular_atraso_clique_roteirizado())
+                    self.dormir_interrompivel(self.calcular_atraso_clique_roteirizado())
                 cfg_ponto = acao.get('point')
                 if cfg_ponto:
                     x, y = resolver_ponto((largura_tela, altura_tela), cfg_ponto)
@@ -209,7 +216,7 @@ class BotDeploymentMixin:
                     self.clicar_ponto_roteiro(retangulo, x, y)
                 atraso_posterior = acao.get('after_delay_seconds')
                 if atraso_posterior is not None:
-                    time.sleep(float(atraso_posterior))
+                    self.dormir_interrompivel(float(atraso_posterior))
                 continue
 
             if tipo_acao == 'scatter_line':
@@ -250,7 +257,7 @@ class BotDeploymentMixin:
                 self.clicar_ponto_roteiro(retangulo, sx, sy)
                 atraso_posterior = acao.get('after_delay_seconds')
                 if atraso_posterior is not None:
-                    time.sleep(float(atraso_posterior))
+                    self.dormir_interrompivel(float(atraso_posterior))
                 pontos = gerar_pontos_aleatorios_em_faixa(
                     (largura_tela, altura_tela),
                     cfg_inicio=acao['start'],
@@ -273,6 +280,7 @@ class BotDeploymentMixin:
 
     def executar_deploy(self) -> None:
         """Dispara o modo de deploy configurado para o ciclo atual."""
+        self.checkpoint_controle()
         if not bool(self.cfg['deployment']['enabled']):
             logging.info('Deploy desativado.')
             return
@@ -292,14 +300,16 @@ class BotDeploymentMixin:
         cliques_padrao = int(self.cfg['deployment']['clicks_per_item'])
         indice = 0
         for tropa in self.listar_tropas_deploy():
+            self.checkpoint_controle()
             nome = tropa.get('name', 'troop')
             cliques = int(tropa.get('clicks', cliques_padrao))
             logging.info('Selecionando tropa=%s cliques=%s', nome, cliques)
             clicar_relativo(retangulo, int(tropa['x']), int(tropa['y']), dry_run=self.dry_run, duration=self.duration)
-            time.sleep(self.between)
+            self.dormir_interrompivel(self.between)
             for _ in range(cliques):
+                self.checkpoint_controle()
                 x, y = pontos[indice % len(pontos)]
                 indice += 1
                 clicar_relativo(retangulo, x, y, dry_run=self.dry_run, duration=self.duration)
-                time.sleep(self.between)
+                self.dormir_interrompivel(self.between)
         self.salvar_checkpoint('after_deploy')

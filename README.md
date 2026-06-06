@@ -38,7 +38,7 @@ playgames_app_qa_visual_bot/
 
 ```cmd
 python -m venv .venv
-.venv\Scripts\activate
+source .venv/Scripts/activate
 pip install -r requirements.txt
 copy config.example.yaml config.yaml
 ```
@@ -66,6 +66,24 @@ Compatibilidade:
 ```cmd
 python playgames_app_bot.py --config config.yaml
 ```
+
+Toolbar grafica:
+
+```cmd
+python gui_main.py
+```
+
+O app abre uma janelinha sempre no topo com `Iniciar`, `Pausar` e `Encerrar`. Se `runtime.require_target_focus: true`, ao retomar o bot ele volta a tentar ativar a janela do Clash of Clans/Play Games antes de seguir.
+
+## Gerar EXE
+
+Instale o PyInstaller no ambiente e rode:
+
+```cmd
+powershell -ExecutionPolicy Bypass -File .\build_exe.ps1
+```
+
+O `config.yaml` e a pasta `assets\` devem ficar ao lado do executavel gerado para permitir ajustes sem recompilar.
 
 ## Utilitarios
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,40 @@ def aplicar_perfil_cv(cfg: dict[str, Any], perfil_selecionado: str | None) -> di
 def carregar_configuracao_runtime(caminho_config: Path, perfil_selecionado: str | None = None) -> dict[str, Any]:
     """Carrega a configuracao completa pronta para uso em runtime."""
     return aplicar_perfil_cv(carregar_yaml(caminho_config), perfil_selecionado)
+
+
+def resolver_diretorio_aplicacao() -> Path:
+    """Retorna o diretorio base da aplicacao, inclusive quando empacotada."""
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+def resolver_diretorio_bundle() -> Path:
+    """Retorna o diretorio temporario de recursos do bundle, quando existir."""
+    bundle_dir = getattr(sys, '_MEIPASS', None)
+    if bundle_dir:
+        return Path(bundle_dir).resolve()
+    return resolver_diretorio_aplicacao()
+
+
+def resolver_caminho_config(caminho_config: str | Path = 'config.yaml') -> Path:
+    """Resolve o config priorizando arquivo externo e, em fallback, recurso embutido."""
+    caminho = Path(caminho_config)
+    if caminho.is_absolute():
+        return caminho
+    if caminho.exists():
+        return caminho.resolve()
+
+    caminho_aplicacao = resolver_diretorio_aplicacao() / caminho
+    if caminho_aplicacao.exists():
+        return caminho_aplicacao.resolve()
+
+    caminho_bundle = resolver_diretorio_bundle() / caminho
+    if caminho_bundle.exists():
+        return caminho_bundle.resolve()
+
+    return caminho.resolve()
 
 
 def resolver_diretorio_debug(cfg: dict[str, Any], caminho_config: Path) -> Path:

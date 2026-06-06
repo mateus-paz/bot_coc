@@ -78,10 +78,11 @@ class BotTargetingMixin:
         timeout = float(self.cfg.get('flow', {}).get('battle_screen_delay_seconds', 5))
         inicio = time.time()
         while time.time() - inicio < timeout:
+            self.checkpoint_controle()
             saque = self.ler_saque_ataque(salvar_imagens_debug=False)
             if self.saque_ataque_pronto(saque):
                 return saque
-            time.sleep(self.poll)
+            self.dormir_interrompivel(self.poll)
         return self.ler_saque_ataque(salvar_imagens_debug=self.salvar_imagens_ocr())
 
     def alvo_atual_aprovado(self) -> bool:
@@ -121,6 +122,7 @@ class BotTargetingMixin:
         fluxo = self.cfg.get('flow', {})
         atraso_proxima_base = float(fluxo.get('next_base_delay_seconds', fluxo.get('battle_screen_delay_seconds', 5)))
         for tentativa in range(1, max_tentativas + 1):
+            self.checkpoint_controle()
             logging.info('Avaliando saque da base %s/%s', tentativa, max_tentativas)
             saque = self.aguardar_saque_ataque_pronto()
             if self.saque_aprovado(saque):
@@ -129,13 +131,14 @@ class BotTargetingMixin:
             logging.info('Base rejeitada pelo filtro de saque. Indo para a proxima.')
             self.clicar_asset('next_button', required=True, timeout=10.0)
             logging.info('Aguardando render da proxima base por %.2fs', atraso_proxima_base)
-            time.sleep(atraso_proxima_base)
+            self.dormir_interrompivel(atraso_proxima_base)
         raise ErroBot('Limite de proximas bases atingido sem encontrar saque aprovado.')
 
     def encontrar_alvo(self) -> None:
         """Avanca entre alvos ate encontrar um que passe pelo filtro principal."""
         max_tentativas = int(self.cfg['runtime']['max_next_attempts_per_cycle'])
         for tentativa in range(1, max_tentativas + 1):
+            self.checkpoint_controle()
             logging.info('Avaliando alvo %s/%s', tentativa, max_tentativas)
             if self.alvo_atual_aprovado():
                 logging.info('Alvo aprovado.')

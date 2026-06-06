@@ -21,6 +21,7 @@ class BotWindowAssetsMixin:
 
     def obter_janela(self) -> JanelaRetangulo:
         """Localiza a janela alvo e a ativa quando permitido pela configuracao."""
+        self.checkpoint_controle()
         deve_ativar = bool(self.cfg['window']['activate_before_click']) and not self.require_target_focus
         return encontrar_janela(self.window_title, ativar=deve_ativar, modo_comparacao=self.window_title_match_mode)
 
@@ -33,9 +34,11 @@ class BotWindowAssetsMixin:
 
     def aguardar_janela_alvo_ativa(self) -> None:
         """Bloqueia a execucao ate a janela alvo estar em foco, se exigido."""
+        self.checkpoint_controle()
         if not self.require_target_focus:
             return
         while not self.janela_alvo_esta_ativa():
+            self.checkpoint_controle()
             ativa = obter_janela_ativa()
             titulo_ativo = ativa.titulo if ativa else '<sem janela ativa>'
             logging.info(
@@ -44,10 +47,12 @@ class BotWindowAssetsMixin:
                 self.window_title,
                 self.focus_check_interval,
             )
-            time.sleep(self.focus_check_interval)
+            self.dormir_interrompivel(self.focus_check_interval)
+        self.marcar_em_execucao()
 
     def capturar_tela(self) -> tuple[JanelaRetangulo, np.ndarray]:
         """Captura um screenshot BGR da janela alvo."""
+        self.checkpoint_controle()
         self.aguardar_janela_alvo_ativa()
         retangulo = self.obter_janela()
         return retangulo, capturar_janela_bgr(retangulo)
@@ -127,11 +132,12 @@ class BotWindowAssetsMixin:
         """Espera um asset aparecer na tela ate o timeout configurado."""
         inicio = time.time()
         while time.time() - inicio < timeout:
+            self.checkpoint_controle()
             retangulo, tela = self.capturar_tela()
             correspondencia = self.encontrar_asset_na_tela(chave, tela)
             if correspondencia:
                 return retangulo, tela, correspondencia
-            time.sleep(self.poll)
+            self.dormir_interrompivel(self.poll)
         return None
 
     def salvar_debug_asset_ausente(self, chave: str) -> None:
@@ -166,13 +172,14 @@ class BotWindowAssetsMixin:
         """Espera qualquer asset dentre uma lista e retorna a chave encontrada."""
         inicio = time.time()
         while time.time() - inicio < timeout:
+            self.checkpoint_controle()
             _, tela = self.capturar_tela()
             for chave in chaves:
                 correspondencia = self.encontrar_asset_na_tela(chave, tela)
                 if correspondencia:
                     logging.info('Asset detectado=%s confianca=%.3f', chave, correspondencia.confidence)
                     return chave
-            time.sleep(self.poll)
+            self.dormir_interrompivel(self.poll)
         return None
 
     def clicar_asset(
@@ -197,7 +204,7 @@ class BotWindowAssetsMixin:
                     y = int(fallback['y'])
                 logging.info('Asset=%s nao encontrado; usando fallback relativo=(%s,%s)', chave, x, y)
                 clicar_relativo(retangulo, x, y, dry_run=self.dry_run, duration=self.duration)
-                time.sleep(self.after_button if after_delay is None else after_delay)
+                self.dormir_interrompivel(self.after_button if after_delay is None else after_delay)
                 return True
             self.salvar_debug_asset_ausente(chave)
             mensagem = f'Botao nao encontrado: {chave}'
@@ -209,5 +216,5 @@ class BotWindowAssetsMixin:
         centro_x, centro_y = correspondencia.centro
         logging.info('Clicando asset=%s centro=(%s,%s) confianca=%.3f', chave, centro_x, centro_y, correspondencia.confidence)
         clicar_relativo(retangulo, centro_x, centro_y, dry_run=self.dry_run, duration=self.duration)
-        time.sleep(self.after_button if after_delay is None else after_delay)
+        self.dormir_interrompivel(self.after_button if after_delay is None else after_delay)
         return True

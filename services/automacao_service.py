@@ -6,6 +6,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from config import resolver_diretorio_aplicacao, resolver_diretorio_bundle
+from services.bot_controller import BotController
 from services.bot_deployment import BotDeploymentMixin
 from services.bot_flow import BotFlowMixin
 from services.bot_shared import ErroBot, listar_passos_assets, listar_passos_pre_busca
@@ -29,16 +31,20 @@ class PlayGamesAppBot(
         *,
         preliminary_only: bool = False,
         deploy_now: bool = False,
+        controller: BotController | None = None,
     ) -> None:
         """Inicializa configuracao, caminhos, timers e dependencias de execucao."""
         self.cfg = cfg
         self.caminho_config = caminho_config
+        self.controller = controller
         self.diretorio_base = caminho_config.parent
+        self.diretorio_saida = resolver_diretorio_aplicacao()
         self.preliminary_only = preliminary_only
         self.deploy_now = deploy_now
+        base_debug_relativa = self.diretorio_saida if self.diretorio_base == resolver_diretorio_bundle() else self.diretorio_base
         diretorio_debug = Path(cfg['runtime']['debug_dir'])
         if not diretorio_debug.is_absolute():
-            diretorio_debug = self.diretorio_base / diretorio_debug
+            diretorio_debug = base_debug_relativa / diretorio_debug
         self.diretorio_debug = diretorio_debug
         configurar_logging(diretorio_debug)
         self.modo_debug_imagens = str(cfg['runtime'].get('debug_images', 'errors_only'))
@@ -64,6 +70,27 @@ class PlayGamesAppBot(
         logging.info('Perfil CV ativo: %s', self.cfg.get('runtime', {}).get('cv_profile', 'default'))
         logging.info('Dry-run: %s', self.dry_run)
         logging.info('Debug imagens: %s', self.modo_debug_imagens)
+
+    def checkpoint_controle(self) -> None:
+        """Sincroniza o fluxo com o controller, quando presente."""
+        if self.controller:
+            self.controller.checkpoint()
+
+    def marcar_em_execucao(self) -> None:
+        """Atualiza o estado do controller para running."""
+        if self.controller:
+            self.controller.mark_running()
+
+    def dormir_interrompivel(self, segundos: float, *, passo: float = 0.10) -> None:
+        """Dorme em pequenos intervalos para respeitar pause/stop."""
+        restante = max(0.0, float(segundos))
+        while restante > 0:
+            self.checkpoint_controle()
+            intervalo = min(passo, restante)
+            import time
+
+            time.sleep(intervalo)
+            restante -= intervalo
 
     def salvar_imagens_ocr(self) -> bool:
         """Indica se deve salvar imagens de OCR rotineiras."""
