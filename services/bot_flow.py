@@ -12,6 +12,27 @@ from utils.debug_utils import salvar_debug
 class BotFlowMixin:
     """Coordena o ciclo principal entre navegacao, busca, deploy e retorno."""
 
+    def executar_calibracao_batalha(self) -> None:
+        """Entra na batalha, roda o deploy configurado e encerra sem aguardar o fim."""
+        self.checkpoint_controle()
+        logging.info('===== Calibracao de batalha: pre_search_steps + deploy =====')
+        fluxo = self.cfg['flow']
+        timeouts = fluxo.get('pre_search_step_timeouts', {})
+        delays = fluxo.get('pre_search_step_after_delays', {})
+        for chave_asset in self.pre_search_steps:
+            required = chave_asset not in self.optional_pre_search_steps
+            timeout = float(timeouts.get(chave_asset, 12.0))
+            after_delay = float(delays.get(chave_asset, self.after_button))
+            self.clicar_asset(chave_asset, required=required, timeout=timeout, after_delay=after_delay)
+        espera_batalha = float(fluxo.get('battle_screen_delay_seconds', 5))
+        if espera_batalha > 0:
+            logging.info('Aguardando %.1fs para estabilizar a tela da batalha.', espera_batalha)
+            self.dormir_interrompivel(espera_batalha)
+        self.salvar_checkpoint('before_battle_calibration_deploy')
+        self.executar_deploy()
+        self.salvar_checkpoint('after_battle_calibration_deploy')
+        logging.info('Calibracao de batalha concluida. Processo encerrado sem aguardar fim do ataque.')
+
     def aguardar_fim_acao(self) -> None:
         """Aguarda o fim da batalha por timeout, botao ou assets de retorno."""
         self.checkpoint_controle()
@@ -92,6 +113,10 @@ class BotFlowMixin:
         if self.deploy_now:
             logging.info('===== Teste de deploy na tela atual =====')
             self.executar_deploy()
+            return
+
+        if self.battle_calibration:
+            self.executar_calibracao_batalha()
             return
 
         if self.preliminary_only:

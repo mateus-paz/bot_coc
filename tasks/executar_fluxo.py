@@ -20,6 +20,11 @@ def criar_parser() -> argparse.ArgumentParser:
     parser.add_argument('--cv', help='seleciona um perfil de estrategia/CV definido em cv_profiles')
     parser.add_argument('--preliminary', action='store_true', help='clica apenas flow.pre_search_steps e encerra')
     parser.add_argument('--deploy-now', action='store_true', help='solta tropas na tela atual sem clicar botoes iniciais')
+    parser.add_argument(
+        '--battle-calibration',
+        action='store_true',
+        help='executa pre_search_steps, entra na batalha, roda o deploy configurado e encerra sem aguardar fim',
+    )
     return parser
 
 
@@ -29,6 +34,7 @@ def executar_bot(
     cv_profile: str | None = None,
     preliminary_only: bool = False,
     deploy_now: bool = False,
+    battle_calibration: bool = False,
     controller: BotController | None = None,
 ) -> int:
     """Executa o fluxo principal de forma programatica e traduz excecoes conhecidas para codigos de saida."""
@@ -45,6 +51,7 @@ def executar_bot(
             caminho_config,
             preliminary_only=preliminary_only,
             deploy_now=deploy_now,
+            battle_calibration=battle_calibration,
             controller=controller,
         ).run()
     except BotStopRequested:
@@ -70,4 +77,5 @@ def executar_fluxo(argv: list[str] | None = None) -> int:
         cv_profile=args.cv,
         preliminary_only=args.preliminary,
         deploy_now=args.deploy_now,
+        battle_calibration=args.battle_calibration,
     )

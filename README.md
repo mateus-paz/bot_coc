@@ -59,6 +59,7 @@ python main.py --config config.yaml
 python main.py --config config.yaml --cv cv_13
 python main.py --config config.yaml --preliminary
 python main.py --config config.yaml --deploy-now
+python main.py --config config.yaml --cv cv_13_slot_calibration --battle-calibration
 ```
 
 Compatibilidade:

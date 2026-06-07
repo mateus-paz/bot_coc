@@ -31,6 +31,7 @@ class PlayGamesAppBot(
         *,
         preliminary_only: bool = False,
         deploy_now: bool = False,
+        battle_calibration: bool = False,
         controller: BotController | None = None,
     ) -> None:
         """Inicializa configuracao, caminhos, timers e dependencias de execucao."""
@@ -41,6 +42,7 @@ class PlayGamesAppBot(
         self.diretorio_saida = resolver_diretorio_aplicacao()
         self.preliminary_only = preliminary_only
         self.deploy_now = deploy_now
+        self.battle_calibration = battle_calibration
         base_debug_relativa = self.diretorio_saida if self.diretorio_base == resolver_diretorio_bundle() else self.diretorio_base
         diretorio_debug = Path(cfg['runtime']['debug_dir'])
         if not diretorio_debug.is_absolute():

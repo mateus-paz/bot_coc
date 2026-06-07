@@ -93,32 +93,104 @@ deployment: &cv_13_deployment
     click_delay_range_seconds: {min: 0.10, max: 0.30}
     actions:
       - type: select
-        name: "troop_2"
-        point: {x_ratio: 0.271, y_ratio: 0.903}
-      - type: scatter_line
-        count: 11
-        start: {x_ratio: 0.190, y_ratio: 0.420}
-        end: {x_ratio: 0.445, y_ratio: 0.078}
-        half_width_px: 20
-      - type: select
-        name: "troop_1"
-        point: {x_ratio: 0.216, y_ratio: 0.903}
-      - type: scatter_line
-        count: 11
-        start: {x_ratio: 0.190, y_ratio: 0.420}
-        end: {x_ratio: 0.445, y_ratio: 0.078}
-        half_width_px: 20
-      - type: select
-        name: "spell_a"
-        point: {x_ratio: 0.35, y_ratio: 0.883}
-        after_delay_seconds: 0.45
+        name: "baby_dragao_topo_esquerdo"
+        point: {x_ratio: 0.387, y_ratio: 0.903}
       - type: click_points
         points:
-          - {x_ratio: 0.337, y_ratio: 0.445}
-          - {x_ratio: 0.382, y_ratio: 0.385}
-          - {x_ratio: 0.425, y_ratio: 0.330}
-          - {x_ratio: 0.468, y_ratio: 0.270}
-          - {x_ratio: 0.510, y_ratio: 0.215}
+          - {x_ratio: 0.225, y_ratio: 0.392}
+      - type: select
+        name: "baby_dragao_base_esquerda"
+        point: {x_ratio: 0.387, y_ratio: 0.903}
+      - type: click_points
+        points:
+          - {x_ratio: 0.225, y_ratio: 0.615}
+      - type: select
+        name: "rei_funil_superior"
+        point: {x_ratio: 0.505, y_ratio: 0.903}
+      - type: click_points
+        points:
+          - {x_ratio: 0.350, y_ratio: 0.165}
+      - type: select
+        name: "rainha_funil_superior"
+        point: {x_ratio: 0.565, y_ratio: 0.903}
+      - type: click_points
+        points:
+          - {x_ratio: 0.385, y_ratio: 0.182}
+      - type: scatter_line_counted
+        name: "baloes_linha_principal"
+        select_point: {x_ratio: 0.216, y_ratio: 0.903}
+        count: 7
+        start: {x_ratio: 0.225, y_ratio: 0.378}
+        end: {x_ratio: 0.355, y_ratio: 0.205}
+        half_width_px: 10
+      - type: scatter_line_counted
+        name: "dragoes_linha_principal"
+        select_point: {x_ratio: 0.271, y_ratio: 0.903}
+        count: 6
+        start: {x_ratio: 0.225, y_ratio: 0.378}
+        end: {x_ratio: 0.355, y_ratio: 0.205}
+        half_width_px: 10
+      - type: scatter_line_counted
+        name: "dragao_dirigivel_linha_principal"
+        select_point: {x_ratio: 0.328, y_ratio: 0.903}
+        count: 5
+        start: {x_ratio: 0.235, y_ratio: 0.362}
+        end: {x_ratio: 0.350, y_ratio: 0.212}
+        half_width_px: 8
+      - type: select
+        name: "principe_servo_push"
+        point: {x_ratio: 0.625, y_ratio: 0.903}
+      - type: click_points
+        points:
+          - {x_ratio: 0.335, y_ratio: 0.205}
+      - type: select
+        name: "guardiao_push"
+        point: {x_ratio: 0.686, y_ratio: 0.903}
+      - type: click_points
+        points:
+          - {x_ratio: 0.352, y_ratio: 0.222}
+      - type: select
+        name: "dirigivel_core"
+        point: {x_ratio: 0.445, y_ratio: 0.903}
+        after_delay_seconds: 0.80
+      - type: click_points
+        points:
+          - {x_ratio: 0.405, y_ratio: 0.150}
+      - type: select
+        name: "furia_corredor"
+        point: {x_ratio: 0.773, y_ratio: 0.903}
+        after_delay_seconds: 0.35
+      - type: click_points
+        points:
+          - {x_ratio: 0.305, y_ratio: 0.395}
+          - {x_ratio: 0.375, y_ratio: 0.345}
+          - {x_ratio: 0.455, y_ratio: 0.288}
+          - {x_ratio: 0.540, y_ratio: 0.228}
+      - type: select
+        name: "gelo_core"
+        point: {x_ratio: 0.835, y_ratio: 0.903}
+        after_delay_seconds: 0.30
+      - type: click_points
+        points:
+          - {x_ratio: 0.505, y_ratio: 0.405}
+          - {x_ratio: 0.565, y_ratio: 0.362}
+          - {x_ratio: 0.625, y_ratio: 0.318}
+      - type: select
+        name: "habilidade_rei"
+        point: {x_ratio: 0.505, y_ratio: 0.903}
+        after_delay_seconds: 0.15
+      - type: select
+        name: "habilidade_rainha"
+        point: {x_ratio: 0.565, y_ratio: 0.903}
+        after_delay_seconds: 0.15
+      - type: select
+        name: "habilidade_principe_servo"
+        point: {x_ratio: 0.625, y_ratio: 0.903}
+        after_delay_seconds: 0.15
+      - type: select
+        name: "habilidade_guardiao"
+        point: {x_ratio: 0.686, y_ratio: 0.903}
+        after_delay_seconds: 0.15
   candidate_order: red_boundary_outside
   deploy_roi:
     x: 180
@@ -168,6 +240,101 @@ deployment: &cv_13_deployment
 cv_profiles:
   cv_13:
     deployment: *cv_13_deployment
+  cv_13_slot_calibration:
+    runtime:
+      stop_after_cycles: 1
+    flow:
+      target_mode: direct_attack
+      attack_loot_minimums: {}
+      pre_search_steps:
+        - start_button
+        - procurar_partida
+        - start_button_2
+      optional_pre_search_steps:
+        - start_button_2
+      pre_search_step_timeouts:
+        start_button: 3
+        procurar_partida: 3
+        start_button_2: 2
+      pre_search_step_after_delays:
+        start_button: 1.00
+        procurar_partida: 1.00
+        start_button_2: 1.00
+      battle_screen_delay_seconds: 5
+    deployment:
+      enabled: true
+      mode: scripted
+      scripted:
+        click_delay_range_seconds: {min: 0.18, max: 0.28}
+        actions:
+          - type: select
+            name: "slot_1_baloes"
+            point: {x_ratio: 0.216, y_ratio: 0.903}
+          - type: click_points
+            points:
+              - {x_ratio: 0.186, y_ratio: 0.425}
+          - type: select
+            name: "slot_2_dragao"
+            point: {x_ratio: 0.271, y_ratio: 0.903}
+          - type: click_points
+            points:
+              - {x_ratio: 0.201, y_ratio: 0.401}
+          - type: select
+            name: "slot_3_esqueletos"
+            point: {x_ratio: 0.328, y_ratio: 0.903}
+          - type: click_points
+            points:
+              - {x_ratio: 0.218, y_ratio: 0.376}
+          - type: select
+            name: "slot_4_baby_dragao"
+            point: {x_ratio: 0.387, y_ratio: 0.903}
+          - type: click_points
+            points:
+              - {x_ratio: 0.236, y_ratio: 0.351}
+          - type: select
+            name: "slot_5_dirigivel"
+            point: {x_ratio: 0.445, y_ratio: 0.903}
+          - type: click_points
+            points:
+              - {x_ratio: 0.253, y_ratio: 0.327}
+          - type: select
+            name: "rei"
+            point: {x_ratio: 0.505, y_ratio: 0.903}
+          - type: click_points
+            points:
+              - {x_ratio: 0.270, y_ratio: 0.303}
+          - type: select
+            name: "rainha"
+            point: {x_ratio: 0.565, y_ratio: 0.903}
+          - type: click_points
+            points:
+              - {x_ratio: 0.287, y_ratio: 0.278}
+          - type: select
+            name: "servos"
+            point: {x_ratio: 0.625, y_ratio: 0.903}
+          - type: click_points
+            points:
+              - {x_ratio: 0.304, y_ratio: 0.255}
+          - type: select
+            name: "guardiao"
+            point: {x_ratio: 0.686, y_ratio: 0.903}
+          - type: click_points
+            points:
+              - {x_ratio: 0.322, y_ratio: 0.232}
+          - type: select
+            name: "furia"
+            point: {x_ratio: 0.773, y_ratio: 0.903}
+            after_delay_seconds: 0.35
+          - type: click_points
+            points:
+              - {x_ratio: 0.345, y_ratio: 0.362}
+          - type: select
+            name: "gelo"
+            point: {x_ratio: 0.835, y_ratio: 0.903}
+            after_delay_seconds: 0.35
+          - type: click_points
+            points:
+              - {x_ratio: 0.380, y_ratio: 0.318}
   cv_17:
     deployment:
       enabled: true
