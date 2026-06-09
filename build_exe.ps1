@@ -1,1 +1,1 @@
-pyinstaller --noconfirm --onefile --windowed --name playgames-bot-toolbar gui_main.py
+pyinstaller --noconfirm infrastructure/packaging/pyinstaller/playgames_bot.spec

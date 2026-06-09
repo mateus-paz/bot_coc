@@ -107,6 +107,9 @@ class BotWindowAssetsMixin:
 
         chaves_obrigatorias = set(self.pre_search_steps)
         chaves_obrigatorias.update(self.optional_pre_search_steps)
+        cfg_battle_bar = self.cfg.get('battle_bar', {})
+        if isinstance(cfg_battle_bar, dict) and bool(cfg_battle_bar.get('enabled', False)):
+            self._validar_assets_battle_bar(cfg_battle_bar, assets)
         if not self.preliminary_only:
             fluxo = self.cfg.get('flow', {})
             if fluxo.get('target_mode', 'resource_filter') != 'direct_attack':
@@ -127,6 +130,29 @@ class BotWindowAssetsMixin:
             caminho = self.resolver_caminho_asset(chave)
             if not caminho.exists():
                 raise ErroBot(f"Asset '{chave}' citado no config.yaml nao encontrado. Caminho esperado: {caminho}")
+
+    def _validar_assets_battle_bar(self, cfg_battle_bar: dict, assets_fluxo: dict[str, str]) -> None:
+        """Valida assets opcionais referenciados pelo subsistema battle_bar."""
+        _ = assets_fluxo
+        position_detector = cfg_battle_bar.get('position_detector', {})
+        if position_detector.get('mode') == 'template_anchored':
+            caminho_anchor = self.diretorio_base / str(position_detector['anchor_asset'])
+            if not caminho_anchor.exists():
+                raise ErroBot(f"battle_bar.position_detector.anchor_asset nao encontrado: {caminho_anchor}")
+
+        content_detector = cfg_battle_bar.get('content_detector', {})
+        empty_slot_asset = content_detector.get('empty_slot_asset')
+        if empty_slot_asset:
+            caminho_empty = self.diretorio_base / str(empty_slot_asset)
+            if not caminho_empty.exists():
+                raise ErroBot(f"battle_bar.content_detector.empty_slot_asset nao encontrado: {caminho_empty}")
+
+        type_classifier = cfg_battle_bar.get('type_classifier', {})
+        for caminhos in type_classifier.get('type_templates', {}).values():
+            for caminho_relativo in caminhos:
+                caminho_template = self.diretorio_base / str(caminho_relativo)
+                if not caminho_template.exists():
+                    raise ErroBot(f"battle_bar.type_classifier.type_templates nao encontrado: {caminho_template}")
 
     def aguardar_asset(self, chave: str, timeout: float) -> tuple[JanelaRetangulo, np.ndarray, Correspondencia] | None:
         """Espera um asset aparecer na tela ate o timeout configurado."""

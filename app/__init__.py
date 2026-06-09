@@ -1,0 +1,1 @@
+"""Entrypoints do app desktop."""

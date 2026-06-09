@@ -22,15 +22,15 @@ if errorlevel 1 (
     )
 )
 
-echo [2/3] Gerando executavel unico...
-"%PYTHON_EXE%" -m PyInstaller --noconfirm --onefile --windowed --name playgames-bot-toolbar --add-data "config.yaml;." --add-data "assets;assets" gui_main.py
+echo [2/3] Gerando executavel do app desktop...
+"%PYTHON_EXE%" -m PyInstaller --noconfirm infrastructure/packaging/pyinstaller/playgames_bot.spec
 if errorlevel 1 (
     echo [ERRO] Falha ao gerar o executavel.
     exit /b 1
 )
 
 echo [3/3] Build concluido.
-echo Executavel unico gerado em: "%ROOT_DIR%dist\playgames-bot-toolbar.exe"
-echo O config.yaml e os assets estao embutidos no proprio exe.
+echo Executavel gerado em: "%ROOT_DIR%dist\playgames-bot-desktop.exe"
+echo Os dados do usuario serao criados em AppData/Roaming/PlayGamesBot na primeira execucao.
 
 endlocal

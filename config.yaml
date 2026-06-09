@@ -240,6 +240,8 @@ deployment: &cv_13_deployment
 cv_profiles:
   cv_13:
     deployment: *cv_13_deployment
+  cv_14:
+    deployment: *cv_13_deployment
   cv_13_slot_calibration:
     runtime:
       stop_after_cycles: 1

@@ -124,6 +124,44 @@ deployment:
       status_roi: {x: 555, y: 900, w: 58, h: 58}
   clicks_per_item: 8
 
+battle_bar:
+  enabled: false
+  position_detector:
+    mode: dark_band
+    bar_roi: {x: 320, y: 890, w: 700, h: 76}
+    slot_count: 8
+    slot_width: 68
+    slot_height: 68
+    slot_spacing: 14
+    allow_fixed_grid_fallback: true
+    min_bar_confidence: 0.35
+    bottom_search_top_ratio: 0.68
+    bottom_search_height_ratio: 0.30
+    sections:
+      - lane: troops
+        count: 4
+      - lane: siege
+        count: 1
+      - lane: heroes
+        count: 2
+      - lane: spells
+        count: 1
+  content_detector:
+    mode: rule_based
+    variance_threshold: 120.0
+  type_classifier:
+    template_confidence_threshold: 0.82
+  state_classifier:
+    available_saturation_threshold: 35
+    available_value_threshold: 35
+    available_color_pixel_saturation: 45
+    available_color_ratio_threshold: 0.20
+    selected_color_pixel_saturation: 90
+    selected_color_ratio_threshold: 0.35
+    state_roi_inset: {x: 6, y: 6, w: 56, h: 56}
+  planner:
+    preferred_types: [troop, siege_machine, hero, spell]
+
 cv_profiles:
   cv_13:
     deployment:

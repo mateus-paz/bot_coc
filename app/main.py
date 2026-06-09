@@ -1,4 +1,4 @@
-"""Compatibilidade para iniciar a nova interface desktop em PySide6."""
+"""Ponto de entrada do app desktop instalavel."""
 
 from __future__ import annotations
 

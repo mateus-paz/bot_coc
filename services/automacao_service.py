@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
+from battle_bar import DefaultActionPlanner, DefaultBattleBarAnalyzer
 from config import resolver_diretorio_aplicacao, resolver_diretorio_bundle
 from services.bot_controller import BotController
 from services.bot_deployment import BotDeploymentMixin
@@ -68,10 +70,48 @@ class PlayGamesAppBot(
         self.optional_pre_search_steps = set(listar_passos_assets(cfg, 'optional_pre_search_steps'))
         self.battle_finished_assets = listar_passos_assets(cfg, 'battle_finished_assets')
         self.return_steps = listar_passos_assets(cfg, 'return_steps')
+        self.battle_bar_analyzer = self._construir_battle_bar_analyzer()
+        self.battle_bar_planner = self._construir_battle_bar_planner()
         self.validar_assets()
         logging.info('Perfil CV ativo: %s', self.cfg.get('runtime', {}).get('cv_profile', 'default'))
         logging.info('Dry-run: %s', self.dry_run)
         logging.info('Debug imagens: %s', self.modo_debug_imagens)
+
+    def _construir_battle_bar_analyzer(self) -> DefaultBattleBarAnalyzer | None:
+        """Cria o analisador da barra quando a feature estiver configurada."""
+        cfg_battle_bar = self.cfg.get('battle_bar')
+        if not isinstance(cfg_battle_bar, dict) or not bool(cfg_battle_bar.get('enabled', False)):
+            return None
+        return DefaultBattleBarAnalyzer(
+            cfg_battle_bar,
+            asset_base_dir=self.diretorio_base,
+            template_confidence=self.confidence,
+        )
+
+    def _construir_battle_bar_planner(self) -> DefaultActionPlanner | None:
+        """Cria o planejador de acoes para os slots, quando habilitado."""
+        cfg_battle_bar = self.cfg.get('battle_bar')
+        if not isinstance(cfg_battle_bar, dict) or not bool(cfg_battle_bar.get('enabled', False)):
+            return None
+        return DefaultActionPlanner(cfg_battle_bar.get('planner', {}))
+
+    def analyze_battle_bar(self):
+        """Analisa a barra de batalha na tela atual e devolve um snapshot."""
+        if self.battle_bar_analyzer is None:
+            raise ErroBot('battle_bar.enabled=false ou configuracao ausente.')
+        _, tela = self.capturar_tela()
+        return self.battle_bar_analyzer.analyze(
+            tela,
+            frame_id=f'battle_bar_{int(time.time() * 1000)}',
+            timestamp=time.time(),
+        )
+
+    def plan_battle_bar_actions(self):
+        """Gera a lista de slots acionaveis a partir do snapshot atual."""
+        if self.battle_bar_planner is None:
+            raise ErroBot('battle_bar.enabled=false ou configuracao ausente.')
+        snapshot = self.analyze_battle_bar()
+        return self.battle_bar_planner.plan(snapshot)
 
     def checkpoint_controle(self) -> None:
         """Sincroniza o fluxo com o controller, quando presente."""
