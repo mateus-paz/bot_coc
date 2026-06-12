@@ -32,3 +32,20 @@ def pressionar_tecla(tecla: str, *, dry_run: bool, hold_seconds: float = 0.04) -
     pyautogui.keyDown(tecla)
     time.sleep(hold_seconds)
     pyautogui.keyUp(tecla)
+
+
+def rolar_relativo(
+    retangulo: JanelaRetangulo,
+    *,
+    clicks: int,
+    dry_run: bool,
+    duration: float,
+) -> None:
+    """Move o cursor ao centro da janela e aplica a roda do mouse."""
+    centro_x = retangulo.esquerda + (retangulo.largura // 2)
+    centro_y = retangulo.topo + (retangulo.altura // 2)
+    logging.info('Scroll relativo clicks=%s centro=(%s,%s)', clicks, centro_x, centro_y)
+    if dry_run:
+        return
+    pyautogui.moveTo(centro_x, centro_y, duration=duration)
+    pyautogui.scroll(clicks)

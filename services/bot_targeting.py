@@ -23,7 +23,11 @@ class BotTargetingMixin:
         if not bool(self.cfg['vision']['ocr_enabled']):
             logging.info('OCR desativado.')
             return []
-        return ler_numeros_por_ocr(roi, engine=self.ocr_engine)
+        return ler_numeros_por_ocr(
+            roi,
+            engine=self.ocr_engine,
+            ocr_config=self.cfg.get('vision', {}).get('pytesseract', {}),
+        )
 
     def ler_saque_ataque(self, *, salvar_imagens_debug: bool = True) -> dict[str, int | None]:
         """Le o saque da tela de batalha usando as ROIs configuradas."""
@@ -48,7 +52,11 @@ class BotTargetingMixin:
             roi = extrair_roi(tela, cfg_roi)
             if salvar_imagens_debug and self.salvar_imagens_ocr():
                 salvar_debug(self.diretorio_debug, f'attack_loot_{nome_recurso}', roi)
-            valores = ler_numeros_por_ocr(roi, engine=self.ocr_engine)
+            valores = ler_numeros_por_ocr(
+                roi,
+                engine=self.ocr_engine,
+                ocr_config=self.cfg.get('vision', {}).get('pytesseract', {}),
+            )
             saque[nome_recurso] = valores[0] if valores else None
             logging.info(
                 'Loot OCR %s roi=(x=%s,y=%s,w=%s,h=%s) valor=%s valores=%s',
@@ -132,6 +140,7 @@ class BotTargetingMixin:
             self.clicar_asset('next_button', required=True, timeout=10.0)
             logging.info('Aguardando render da proxima base por %.2fs', atraso_proxima_base)
             self.dormir_interrompivel(atraso_proxima_base)
+            self.normalizar_zoom_batalha()
         raise ErroBot('Limite de proximas bases atingido sem encontrar saque aprovado.')
 
     def encontrar_alvo(self) -> None:

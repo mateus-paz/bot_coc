@@ -11,6 +11,7 @@ import pyautogui
 from config import carregar_configuracao_runtime, resolver_caminho_config
 from services.automacao_service import ErroBot, PlayGamesAppBot
 from services.bot_controller import BotController, BotStopRequested
+from utils.tesseract_runtime import validate_tesseract_runtime
 
 
 def criar_parser() -> argparse.ArgumentParser:
@@ -46,6 +47,7 @@ def executar_bot(
 
     try:
         cfg = carregar_configuracao_runtime(caminho_config, cv_profile)
+        validate_tesseract_runtime(cfg)
         PlayGamesAppBot(
             cfg,
             caminho_config,

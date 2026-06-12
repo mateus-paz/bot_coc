@@ -62,7 +62,7 @@ class UserSettings:
     window_title: str = 'Clash of Clans'
     window_match_mode: str = 'contains'
     activate_window: bool = True
-    dry_run: bool = True
+    dry_run: bool = False
     cv_profile: str | None = None
     bottom_region: RatioRegion = field(default_factory=lambda: RatioRegion(0.0, 0.78, 1.0, 0.22))
     battle_bar: BattleBarSettings = field(default_factory=BattleBarSettings)
@@ -106,7 +106,7 @@ class UserSettings:
             window_title=str(data.get('window_title', 'Clash of Clans')),
             window_match_mode=str(data.get('window_match_mode', 'contains')),
             activate_window=bool(data.get('activate_window', True)),
-            dry_run=bool(data.get('dry_run', True)),
+            dry_run=bool(data.get('dry_run', False)),
             cv_profile=data.get('cv_profile'),
             bottom_region=bottom_region,
             battle_bar=battle_bar,

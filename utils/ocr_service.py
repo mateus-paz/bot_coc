@@ -14,10 +14,8 @@ try:
 except Exception:
     pytesseract = None
 
-try:
-    import easyocr
-except Exception:
-    easyocr = None
+easyocr = None
+_easyocr_import_attempted = False
 
 
 def normalizar_numero_ocr(token: str) -> int | None:
@@ -47,23 +45,157 @@ def normalizar_numero_ocr(token: str) -> int | None:
 leitor_easyocr: Any = None
 
 
-def extrair_texto_pytesseract(imagem_bgr: np.ndarray) -> str:
-    """Extrai texto via pytesseract com preprocessamento simples."""
+def _resolve_psm_modes(config: dict[str, Any] | None, *, default: list[int]) -> list[int]:
+    configured = (config or {}).get('psm_modes', default)
+    if isinstance(configured, int):
+        return [configured]
+    if not isinstance(configured, list):
+        return list(default)
+    modes: list[int] = []
+    for value in configured:
+        try:
+            mode = int(value)
+        except (TypeError, ValueError):
+            continue
+        if mode not in modes:
+            modes.append(mode)
+    return modes or list(default)
+
+
+def _build_pytesseract_variants(imagem_bgr: np.ndarray, config: dict[str, Any] | None) -> list[tuple[str, np.ndarray]]:
+    cfg = config or {}
+    cinza = cv2.cvtColor(imagem_bgr, cv2.COLOR_BGR2GRAY)
+    upscale = float(cfg.get('upscale_factor', 3.0))
+    if upscale != 1.0:
+        cinza = cv2.resize(cinza, None, fx=upscale, fy=upscale, interpolation=cv2.INTER_CUBIC)
+    blur_kernel = int(cfg.get('blur_kernel', 3))
+    if blur_kernel > 1:
+        if blur_kernel % 2 == 0:
+            blur_kernel += 1
+        cinza = cv2.GaussianBlur(cinza, (blur_kernel, blur_kernel), 0)
+
+    variants: list[tuple[str, np.ndarray]] = [('gray', cinza)]
+
+    _, binary = cv2.threshold(cinza, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    variants.append(('otsu_binary', binary))
+
+    _, binary_inv = cv2.threshold(cinza, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    variants.append(('otsu_binary_inv', binary_inv))
+
+    if bool(cfg.get('use_adaptive_threshold', True)):
+        adaptive = cv2.adaptiveThreshold(
+            cinza,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            31,
+            11,
+        )
+        variants.append(('adaptive_binary', adaptive))
+    return variants
+
+
+def _run_pytesseract_with_confidence(image: np.ndarray, *, psm: int, whitelist: str) -> tuple[str, float]:
+    data = pytesseract.image_to_data(
+        image,
+        config=f'--psm {psm} -c tessedit_char_whitelist={whitelist}',
+        output_type=pytesseract.Output.DICT,
+    )
+    texts: list[str] = []
+    confidences: list[float] = []
+    for text, confidence in zip(data.get('text', []), data.get('conf', [])):
+        normalized = str(text).strip()
+        if not normalized:
+            continue
+        texts.append(normalized)
+        try:
+            confidences.append(float(confidence))
+        except (TypeError, ValueError):
+            continue
+    if not texts:
+        return '', 0.0
+    confidence_score = max(0.0, (sum(confidences) / max(1, len(confidences))) / 100.0) if confidences else 0.0
+    return ' '.join(texts), confidence_score
+
+
+def _score_numeric_ocr_candidate(text: str, confidence: float, config: dict[str, Any] | None = None) -> float:
+    """Pontua uma leitura OCR priorizando numeros utilizaveis em vez de confianca bruta."""
+    cfg = config or {}
+    tokens = re.findall(r'[0-9][0-9.,]*[KkMm]?', text)
+    valid_values = [normalizar_numero_ocr(token) for token in tokens]
+    valid_values = [value for value in valid_values if value is not None]
+    digit_lengths = [len(re.sub(r'[^0-9]', '', token)) for token in tokens]
+    longest_token = max(digit_lengths, default=0)
+    max_digits = cfg.get('expected_max_digits')
+    min_digits = int(cfg.get('expected_min_digits', 0))
+    alpha_chars = sum(1 for ch in text if ch.isalpha())
+    punctuation_chars = sum(1 for ch in text if ch in ',.')
+    oversize_penalty = 0.0
+    if max_digits is not None:
+        try:
+            max_digits_int = int(max_digits)
+        except (TypeError, ValueError):
+            max_digits_int = 0
+        if max_digits_int > 0:
+            oversize_penalty = sum(max(0, length - max_digits_int) * 0.30 for length in digit_lengths)
+    undersize_penalty = sum(max(0, min_digits - length) * 0.10 for length in digit_lengths) if min_digits > 0 else 0.0
+    return (
+        confidence
+        + (longest_token * 0.20)
+        + (len(valid_values) * 0.15)
+        + (0.10 if len(tokens) == 1 and longest_token >= 4 else 0.0)
+        - (alpha_chars * 0.08)
+        - (punctuation_chars * 0.01)
+        - oversize_penalty
+        - undersize_penalty
+    )
+
+
+def extrair_texto_pytesseract(imagem_bgr: np.ndarray, config: dict[str, Any] | None = None) -> str:
+    """Extrai texto via pytesseract com preprocessamento calibravel."""
     if pytesseract is None:
         logging.warning('pytesseract indisponivel; OCR desativado na pratica.')
         return ''
-    cinza = cv2.cvtColor(imagem_bgr, cv2.COLOR_BGR2GRAY)
-    cinza = cv2.resize(cinza, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
-    cinza = cv2.GaussianBlur(cinza, (3, 3), 0)
-    _, limiar = cv2.threshold(cinza, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    config = '--psm 6 -c tessedit_char_whitelist=0123456789.,KMkm '
-    return pytesseract.image_to_string(limiar, config=config)
+    cfg = config or {}
+    whitelist = str(cfg.get('whitelist', '0123456789.,KMkm '))
+    psm_modes = _resolve_psm_modes(cfg, default=[6, 7, 11])
+    best_text = ''
+    best_score = -1.0
+    for variant_name, variant in _build_pytesseract_variants(imagem_bgr, cfg):
+        for psm in psm_modes:
+            try:
+                text, confidence = _run_pytesseract_with_confidence(variant, psm=psm, whitelist=whitelist)
+            except Exception:
+                continue
+            parsed_count = len(re.findall(r'[0-9][0-9., ]*[KkMm]?', text))
+            score = confidence + (parsed_count * 0.05)
+            logging.debug(
+                'pytesseract variant=%s psm=%s text=%r confidence=%.3f parsed=%s',
+                variant_name,
+                psm,
+                text,
+                confidence,
+                parsed_count,
+            )
+            score = _score_numeric_ocr_candidate(text, confidence, cfg)
+            if score > best_score:
+                best_score = score
+                best_text = text
+    return best_text
 
 
 def extrair_texto_easyocr(imagem_bgr: np.ndarray) -> str:
     """Extrai texto via EasyOCR com cache do reader."""
-    global leitor_easyocr
-    if easyocr is None:
+    global leitor_easyocr, easyocr, _easyocr_import_attempted
+    if easyocr is None and not _easyocr_import_attempted:
+        _easyocr_import_attempted = True
+        try:
+            import easyocr as easyocr_module
+        except Exception:
+            easyocr = False
+        else:
+            easyocr = easyocr_module
+    if easyocr in (None, False):
         logging.warning('easyocr indisponivel; OCR desativado na pratica.')
         return ''
     if leitor_easyocr is None:
@@ -74,12 +206,16 @@ def extrair_texto_easyocr(imagem_bgr: np.ndarray) -> str:
     return ' '.join(str(item) for item in resultado)
 
 
-def ler_numeros_por_ocr(imagem_bgr: np.ndarray, engine: str = 'pytesseract') -> list[int]:
+def ler_numeros_por_ocr(
+    imagem_bgr: np.ndarray,
+    engine: str = 'pytesseract',
+    ocr_config: dict[str, Any] | None = None,
+) -> list[int]:
     """Executa OCR no engine selecionado e converte os tokens numericos encontrados."""
     if engine == 'easyocr':
         texto = extrair_texto_easyocr(imagem_bgr)
     else:
-        texto = extrair_texto_pytesseract(imagem_bgr)
+        texto = extrair_texto_pytesseract(imagem_bgr, config=ocr_config)
     tokens = re.findall(r'[0-9][0-9., ]*[KkMm]?', texto)
     valores = []
     for token in tokens:

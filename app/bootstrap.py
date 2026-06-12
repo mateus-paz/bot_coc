@@ -10,12 +10,14 @@ from infrastructure.runtime_config import RuntimeConfigBuilder
 from infrastructure.vision.opencv_battle_bar_analyzer import OpenCvBattleBarAnalyzerAdapter
 from infrastructure.window.pygetwindow_locator import PyGetWindowLocator
 from presentation.desktop.qt_app import run_desktop_app
+from utils.tesseract_runtime import configure_tesseract_runtime
 
 from config import resolver_diretorio_bundle
 
 
 def bootstrap_desktop_app() -> int:
     """Monta dependencias concretas e inicia a UI."""
+    configure_tesseract_runtime()
     settings_repository = AppDataSettingsRepository()
     window_locator = PyGetWindowLocator()
     screen_capture = MSSScreenCapture()

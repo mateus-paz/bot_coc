@@ -65,6 +65,22 @@ class OpenCvBattleBarAnalyzerAdapter:
                     'h': battle_bar.state_roi_inset_h,
                 },
             },
+            'quantity_classifier': {
+                'preferred_backends': ['pytesseract'],
+                'quantity_roi': {
+                    'roi_specs': [
+                        {'x_ratio': 0.00, 'y_ratio': 0.03, 'w_ratio': 0.92, 'h_ratio': 0.24},
+                        {'x_ratio': 0.10, 'y_ratio': 0.03, 'w_ratio': 0.80, 'h_ratio': 0.24},
+                        {'x_ratio': 0.18, 'y_ratio': 0.03, 'w_ratio': 0.72, 'h_ratio': 0.24},
+                        {'x_ratio': 0.25, 'y_ratio': 0.03, 'w_ratio': 0.70, 'h_ratio': 0.24},
+                        {'x_ratio': 0.00, 'y_ratio': 0.00, 'w_ratio': 0.92, 'h_ratio': 0.24},
+                        {'x_ratio': 0.00, 'y_ratio': 0.00, 'w_ratio': 0.92, 'h_ratio': 0.30},
+                        {'x_ratio': 0.10, 'y_ratio': 0.00, 'w_ratio': 0.80, 'h_ratio': 0.30},
+                        {'x_ratio': 0.30, 'y_ratio': 0.00, 'w_ratio': 0.62, 'h_ratio': 0.34},
+                    ],
+                },
+                'upscale_factor': 4,
+            },
             'planner': {
                 'preferred_types': ['troop', 'siege_machine', 'hero', 'spell'],
             },

@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from battle_bar.classifiers import RuleBasedContentStateClassifier, RuleBasedContentTypeClassifier
+from battle_bar.classifiers import OcrContentQuantityClassifier, RuleBasedContentStateClassifier, RuleBasedContentTypeClassifier
 from battle_bar.detectors import DarkBandSlotPositionDetector, FixedGridSlotPositionDetector, RuleBasedSlotContentDetector, TemplateAnchoredSlotPositionDetector
 from battle_bar.domain import BattleBarLayout, BattleBarSnapshot, BoundingBox, SlotLaneHint
 from services.bot_shared import ErroBot
@@ -50,6 +50,7 @@ class DefaultBattleBarAnalyzer:
         self.content_detector = self._build_content_detector()
         self.type_classifier = RuleBasedContentTypeClassifier(config.get('type_classifier', {}), asset_base_dir=asset_base_dir)
         self.state_classifier = RuleBasedContentStateClassifier(config.get('state_classifier', {}))
+        self.quantity_classifier = OcrContentQuantityClassifier(config.get('quantity_classifier', {}))
 
     def _build_position_detector(self):
         cfg = self.config.get('position_detector', {})
@@ -79,7 +80,9 @@ class DefaultBattleBarAnalyzer:
                 continue
             typed = self.type_classifier.classify(frame, slot, slot.content)
             state = self.state_classifier.classify(frame, slot, typed)
-            classified.append(slot.with_content(replace(typed, state=state)))
+            with_state = replace(typed, state=state)
+            quantified = self.quantity_classifier.classify(frame, slot, with_state)
+            classified.append(slot.with_content(quantified))
 
         bar_bbox = self._resolve_bar_bbox(frame)
         position_confidence = float(getattr(self.position_detector, 'last_confidence', 0.0))

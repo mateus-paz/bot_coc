@@ -22,7 +22,7 @@ class DesktopAutomationService:
         return self.controller.start(lambda: self._run(settings))
 
     def pause(self) -> bool:
-        """Solicita pausa no proximo checkpoint."""
+        """Aborta o ciclo atual no proximo checkpoint seguro."""
         return self.controller.pause()
 
     def stop(self) -> bool:
@@ -36,4 +36,3 @@ class DesktopAutomationService:
     def _run(self, settings) -> None:
         cfg, caminho_template = self.runtime_config_builder.build(settings)
         PlayGamesAppBot(cfg, caminho_template, controller=self.controller).run()
-

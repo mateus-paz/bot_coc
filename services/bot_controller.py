@@ -1,4 +1,4 @@
-"""Controller thread-safe para start, pause, resume e stop do bot."""
+"""Controller thread-safe para start, interrupcao e stop do bot."""
 
 from __future__ import annotations
 
@@ -34,14 +34,9 @@ class BotController:
         self._last_error: str | None = None
 
     def start(self, target: Callable[[], None]) -> bool:
-        """Inicia um novo worker ou retoma um worker pausado."""
+        """Inicia um novo worker quando nao existe execucao ativa."""
         with self._condition:
             if self._thread and self._thread.is_alive():
-                if self._paused:
-                    self._paused = False
-                    self._state = 'running'
-                    self._condition.notify_all()
-                    return True
                 return False
 
             self._paused = False
@@ -64,19 +59,20 @@ class BotController:
             self.mark_stopped()
 
     def pause(self) -> bool:
-        """Pede pausa lógica no próximo checkpoint seguro."""
+        """Aborta o ciclo atual no proximo checkpoint seguro."""
         with self._condition:
-            if not (self._thread and self._thread.is_alive()) or self._paused:
+            if not (self._thread and self._thread.is_alive()) or self._stop_requested:
                 return False
-            self._paused = True
-            self._state = 'paused'
+            self._stop_requested = True
+            self._paused = False
+            self._state = 'stopping'
             self._condition.notify_all()
             return True
 
     def stop(self) -> bool:
         """Solicita parada e libera qualquer espera de pausa."""
         with self._condition:
-            if self._stop_requested:
+            if not (self._thread and self._thread.is_alive()) or self._stop_requested:
                 return False
             self._stop_requested = True
             self._paused = False
@@ -85,7 +81,7 @@ class BotController:
             return True
 
     def wait_if_paused(self) -> None:
-        """Bloqueia enquanto pausado e falha se houver parada solicitada."""
+        """Mantem checkpoints compativeis e respeita parada solicitada."""
         with self._condition:
             while self._paused and not self._stop_requested:
                 self._condition.wait(timeout=0.25)

@@ -28,6 +28,26 @@ class SetupService:
         """Persistencia da configuracao local."""
         self.settings_repository.save(settings)
 
+    def find_target_window(self, settings: UserSettings, *, activate: bool = False):
+        """Localiza a janela que sera acompanhada pela toolbar."""
+        return self.window_locator.find_target_window(
+            settings.window_title,
+            settings.window_match_mode,
+            activate,
+        )
+
+    def inspect_target_window(self, window_id: int):
+        """Atualiza estado e geometria da janela acompanhada."""
+        return self.window_locator.inspect_target_window(window_id)
+
+    def activate_target_window(self, window_id: int) -> bool:
+        """Entrega o foco do teclado e mouse para a janela alvo."""
+        return self.window_locator.activate_target_window(window_id)
+
+    def attach_overlay_window(self, child_window_id: int, owner_window_id: int) -> None:
+        """Vincula a toolbar nativa a janela alvo."""
+        self.window_locator.attach_owned_window(child_window_id, owner_window_id)
+
     def detect_window(self, settings: UserSettings) -> WindowInfoDTO:
         """Localiza a janela alvo conforme configuracao atual."""
         window = self.window_locator.find_target_window(settings.window_title, settings.window_match_mode, settings.activate_window)
@@ -66,6 +86,7 @@ class SetupService:
                 is_empty=slot.content is None,
             )
             for slot in snapshot.slots
+            if slot.content is not None
         ]
         confidence = float(snapshot.diagnostics.get('position_confidence', 0.0))
         used_fallback = bool(snapshot.diagnostics.get('used_position_fallback', False))
@@ -108,12 +129,13 @@ class SetupService:
             cv2.LINE_AA,
         )
         for slot in snapshot.slots:
+            if slot.content is None:
+                continue
             bbox = slot.bbox
-            color = (0, 200, 0) if slot.content is not None else (180, 180, 180)
+            color = (0, 200, 0)
             cv2.rectangle(overlay, (bbox.x, bbox.y), (bbox.x + bbox.w, bbox.y + bbox.h), color, 2)
             label = f'#{slot.index}'
-            if slot.content is not None:
-                label = f'{label}:{slot.content.type.value}:{slot.content.state.availability.value}'
+            label = f'{label}:{slot.content.type.value}:{slot.content.state.availability.value}'
             cv2.putText(
                 overlay,
                 label,

@@ -18,19 +18,22 @@ if [[ ! -f "$SPEC_FILE" ]]; then
   exit 1
 fi
 
-echo "[1/4] Verificando PyInstaller..."
+echo "[1/5] Verificando PyInstaller..."
 if ! "$PYTHON_EXE" -m PyInstaller --version >/dev/null 2>&1; then
   echo "PyInstaller nao encontrado. Instalando..."
   "$PYTHON_EXE" -m pip install pyinstaller
 fi
 
-echo "[2/4] Limpando saidas anteriores..."
+echo "[2/5] Gerando icone do Windows..."
+"$PYTHON_EXE" "$ROOT_DIR/infrastructure/packaging/generate_app_icon.py"
+
+echo "[3/5] Limpando saidas anteriores..."
 rm -rf "$ROOT_DIR/build" "$ROOT_DIR/dist"
 
-echo "[3/4] Gerando executavel desktop..."
+echo "[4/5] Gerando executavel desktop..."
 "$PYTHON_EXE" -m PyInstaller --noconfirm "$SPEC_FILE"
 
-echo "[4/4] Build concluido."
+echo "[5/5] Build concluido."
 echo "Executavel gerado em: $ROOT_DIR/dist/playgames-bot-desktop.exe"
 echo "Pasta de saida: $ROOT_DIR/dist"
 echo "Dados do usuario em runtime: %APPDATA%/PlayGamesBot"

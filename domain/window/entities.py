@@ -21,4 +21,5 @@ class WindowInfo:
 
     title: str
     bounds: WindowBounds
-
+    window_id: int | None = None
+    is_minimized: bool = False

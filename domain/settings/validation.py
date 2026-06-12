@@ -11,6 +11,8 @@ def validar_user_settings(settings: UserSettings) -> None:
         raise ValueError('Informe um titulo de janela para localizar o Clash of Clans.')
     if settings.window_match_mode not in {'contains', 'starts_with', 'exact'}:
         raise ValueError('Modo de comparacao de janela invalido.')
+    if settings.cv_profile not in {None, 'cv_13', 'cv_14', 'cv_17'}:
+        raise ValueError('Perfil CV invalido.')
     if settings.battle_bar.slot_count <= 0:
         raise ValueError('A quantidade de slots deve ser maior que zero.')
     for value in (
@@ -29,4 +31,3 @@ def validar_user_settings(settings: UserSettings) -> None:
         raise ValueError('A regiao inferior precisa ter largura e altura positivas.')
     if settings.battle_bar.bar_roi.w_ratio <= 0 or settings.battle_bar.bar_roi.h_ratio <= 0:
         raise ValueError('A ROI da battle bar precisa ter largura e altura positivas.')
-

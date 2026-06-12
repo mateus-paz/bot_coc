@@ -86,6 +86,7 @@ class BotFlowMixin:
         if fluxo.get('target_mode', 'resource_filter') == 'direct_attack':
             logging.info('Modo direct_attack: entrando na vila para validar saque e atacar se aprovado.')
             self.dormir_interrompivel(float(fluxo.get('battle_screen_delay_seconds', 5)))
+            self.normalizar_zoom_batalha()
             if self.filtro_saque_ativo():
                 saque = self.encontrar_alvo_por_saque()
         else:

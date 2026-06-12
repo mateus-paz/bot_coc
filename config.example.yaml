@@ -25,6 +25,15 @@ vision:
     start_button_2: {x_ratio: 0.74, y_ratio: 0.78, w_ratio: 0.23, h_ratio: 0.16}
   ocr_enabled: true
   ocr_engine: pytesseract
+  tesseract_cmd: "runtime/tesseract/tesseract.exe"
+  pytesseract:
+    psm_modes: [7, 6, 11]
+    upscale_factor: 3.0
+    blur_kernel: 3
+    use_adaptive_threshold: true
+    whitelist: "0123456789.,KMkm "
+    expected_min_digits: 4
+    expected_max_digits: 7
   resource_threshold: 1000000
   resource_roi:
     x: 20
@@ -151,6 +160,10 @@ battle_bar:
     variance_threshold: 120.0
   type_classifier:
     template_confidence_threshold: 0.82
+  quantity_classifier:
+    preferred_backends: [pytesseract]
+    upscale_factor: 4
+    tesseract_psm_modes: [7, 11, 13, 6]
   state_classifier:
     available_saturation_threshold: 35
     available_value_threshold: 35
@@ -166,13 +179,32 @@ cv_profiles:
   cv_13:
     deployment:
       enabled: true
+  cv_14:
+    deployment:
+      enabled: true
   cv_17:
     deployment:
       enabled: true
       mode: scripted
       scripted:
         click_delay_range_seconds: {min: 0.10, max: 0.30}
-        actions: []
+        actions:
+          - type: select
+            name: "primeira_tropa_disponivel"
+            slot_ref:
+              content_type: troop
+              availability: available
+              occurrence: 1
+          - type: scatter_line_counted
+            name: "primeiro_heroi_detectado"
+            slot_ref:
+              content_type: hero
+              availability: available
+              occurrence: 1
+            count: 1
+            start: {x_ratio: 0.30, y_ratio: 0.45}
+            end: {x_ratio: 0.45, y_ratio: 0.20}
+            half_width_px: 10
 
 clicking:
   move_duration_seconds: 0.04

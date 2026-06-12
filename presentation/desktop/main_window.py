@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any, Callable
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QObject, QThread, QTimer, Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -31,17 +32,38 @@ from domain.settings.entities import RatioRegion, UserSettings
 from presentation.desktop.widgets.image_preview import ImagePreviewWidget
 
 
+class _AsyncTaskWorker(QObject):
+    """Executa uma tarefa bloqueante fora do thread da UI."""
+
+    finished = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, func: Callable[[], Any]) -> None:
+        super().__init__()
+        self._func = func
+
+    def run(self) -> None:
+        try:
+            self.finished.emit(self._func())
+        except Exception as exc:  # pragma: no cover - signal bridge
+            self.failed.emit(str(exc))
+
+
 class MainWindow(QMainWindow):
     """UI principal com setup, diagnostico visual e controles do bot."""
 
-    def __init__(self, *, setup_service, automation_service) -> None:
+    def __init__(self, *, setup_service, automation_service, stop_on_close: bool = True) -> None:
         super().__init__()
         self.setup_service = setup_service
         self.automation_service = automation_service
+        self.stop_on_close = stop_on_close
         self.settings = self.setup_service.load_settings()
-        self.setWindowTitle('PlayGames Bot Desktop')
+        self.setWindowTitle('Painel do PlayGames Bot')
         self.resize(1240, 820)
         self._last_error_message = ''
+        self._active_task_thread: QThread | None = None
+        self._active_task_worker: _AsyncTaskWorker | None = None
+        self._busy_message = ''
 
         self._build_ui()
         self._load_settings_into_form(self.settings)
@@ -246,46 +268,36 @@ class MainWindow(QMainWindow):
         )
 
     def _handle_detect_window(self) -> None:
-        try:
-            self.settings = self._read_settings_from_form()
-            window = self.setup_service.detect_window(self.settings)
-            self._append_log(
-                f'Janela detectada: {window.title} ({window.left},{window.top}) {window.width}x{window.height}'
-            )
-        except Exception as exc:
-            self._show_error(str(exc))
+        settings = self._read_settings_from_form()
+        self._run_async_task(
+            'Detectando janela alvo...',
+            lambda: self.setup_service.detect_window(settings),
+            self._on_detect_window_finished,
+        )
 
     def _handle_capture_bottom_region(self) -> None:
-        try:
-            self.settings = self._read_settings_from_form()
-            preview = self.setup_service.capture_bottom_region_preview(self.settings)
-            self.preview.set_bgr_image(preview.image_bgr)
-            self._append_log(preview.message)
-        except Exception as exc:
-            self._show_error(str(exc))
+        settings = self._read_settings_from_form()
+        self._run_async_task(
+            'Capturando regiao inferior...',
+            lambda: self.setup_service.capture_bottom_region_preview(settings),
+            self._on_capture_bottom_region_finished,
+        )
 
     def _handle_detect_slots(self) -> None:
-        try:
-            self.settings = self._read_settings_from_form()
-            preview, slots = self.setup_service.detect_slots_preview(self.settings)
-            self.preview.set_bgr_image(preview.image_bgr)
-            self.slot_list.clear()
-            for slot in slots:
-                text = f'#{slot.index} lane={slot.lane} empty={slot.is_empty}'
-                if not slot.is_empty:
-                    text += f' type={slot.content_type} state={slot.state}'
-                QListWidgetItem(text, self.slot_list)
-            self._append_log(preview.message)
-        except Exception as exc:
-            self._show_error(str(exc))
+        settings = self._read_settings_from_form()
+        self._run_async_task(
+            'Detectando slots da battle bar...',
+            lambda: self.setup_service.detect_slots_preview(settings),
+            self._on_detect_slots_finished,
+        )
 
     def _handle_save_settings(self) -> None:
-        try:
-            self.settings = self._read_settings_from_form()
-            self.setup_service.save_settings(self.settings)
-            self._append_log('Configuracao salva em AppData/Roaming.')
-        except Exception as exc:
-            self._show_error(str(exc))
+        settings = self._read_settings_from_form()
+        self._run_async_task(
+            'Salvando configuracao...',
+            lambda: self.setup_service.save_settings(settings),
+            lambda _: self._on_save_settings_finished(settings),
+        )
 
     def _handle_start(self) -> None:
         try:
@@ -318,14 +330,22 @@ class MainWindow(QMainWindow):
             'stopped': 'Parado',
             'error': 'Erro',
         }
-        self.status_label.setText(f'Status: {labels.get(status.state, status.state)}')
+        if self._active_task_thread is not None:
+            self.status_label.setText(f'Status: {self._busy_message}')
+        else:
+            self.status_label.setText(f'Status: {labels.get(status.state, status.state)}')
         if status.last_error:
             if status.last_error != self._last_error_message:
                 self._append_log(f'Erro: {status.last_error}')
                 self._last_error_message = status.last_error
-        self.start_button.setEnabled(not status.is_running)
-        self.pause_button.setEnabled(status.state == 'running')
-        self.stop_button.setEnabled(status.is_running or status.stop_requested)
+        busy = self._active_task_thread is not None
+        self.detect_window_button.setEnabled(not busy)
+        self.capture_region_button.setEnabled(not busy)
+        self.detect_slots_button.setEnabled(not busy)
+        self.save_button.setEnabled(not busy)
+        self.start_button.setEnabled((not busy) and (not status.is_running))
+        self.pause_button.setEnabled((not busy) and (status.state == 'running'))
+        self.stop_button.setEnabled((not busy) and (status.is_running or status.stop_requested))
 
     def _append_log(self, message: str) -> None:
         self.log_output.append(message)
@@ -334,7 +354,72 @@ class MainWindow(QMainWindow):
         self._append_log(f'Erro: {message}')
         QMessageBox.critical(self, 'Erro', message)
 
+    def _run_async_task(
+        self,
+        busy_message: str,
+        func: Callable[[], Any],
+        on_success: Callable[[Any], None],
+    ) -> None:
+        if self._active_task_thread is not None:
+            self._append_log('Aguarde a operacao atual terminar.')
+            return
+        self._busy_message = busy_message
+        self._append_log(busy_message)
+        worker = _AsyncTaskWorker(func)
+        thread = QThread(self)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(on_success)
+        worker.finished.connect(self._finish_async_task)
+        worker.failed.connect(self._on_async_task_failed)
+        worker.failed.connect(self._finish_async_task)
+        worker.finished.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        self._active_task_worker = worker
+        self._active_task_thread = thread
+        self._refresh_status()
+        thread.start()
+
+    def _finish_async_task(self, *_args: object) -> None:
+        self._active_task_worker = None
+        self._active_task_thread = None
+        self._busy_message = ''
+        self._refresh_status()
+
+    def _on_async_task_failed(self, message: str) -> None:
+        self._show_error(message)
+
+    def _on_detect_window_finished(self, window) -> None:
+        self.settings = self._read_settings_from_form()
+        self._append_log(
+            f'Janela detectada: {window.title} ({window.left},{window.top}) {window.width}x{window.height}'
+        )
+
+    def _on_capture_bottom_region_finished(self, preview) -> None:
+        self.settings = self._read_settings_from_form()
+        self.preview.set_bgr_image(preview.image_bgr)
+        self._append_log(preview.message)
+
+    def _on_detect_slots_finished(self, result) -> None:
+        self.settings = self._read_settings_from_form()
+        preview, slots = result
+        self.preview.set_bgr_image(preview.image_bgr)
+        self.slot_list.clear()
+        for slot in slots:
+            text = f'#{slot.index} lane={slot.lane} empty={slot.is_empty}'
+            if not slot.is_empty:
+                text += f' type={slot.content_type} state={slot.state}'
+            QListWidgetItem(text, self.slot_list)
+        self._append_log(preview.message)
+
+    def _on_save_settings_finished(self, settings: UserSettings) -> None:
+        self.settings = settings
+        self._append_log('Configuracao salva em AppData/Roaming.')
+
     def closeEvent(self, event: QCloseEvent) -> None:
         """Solicita parada do worker ao encerrar a janela."""
-        self.automation_service.stop()
+        if self.stop_on_close:
+            self.automation_service.stop()
         super().closeEvent(event)

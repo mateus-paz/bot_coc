@@ -27,7 +27,16 @@ vision:
     search_button: {x_ratio: 0.02, y_ratio: 0.58, w_ratio: 0.28, h_ratio: 0.22}
     start_button_2: {x_ratio: 0.74, y_ratio: 0.78, w_ratio: 0.23, h_ratio: 0.16}
   ocr_enabled: true
-  ocr_engine: easyocr
+  ocr_engine: pytesseract
+  tesseract_cmd: "runtime/tesseract/tesseract.exe"
+  pytesseract:
+    psm_modes: [7, 6, 11]
+    upscale_factor: 3.0
+    blur_kernel: 3
+    use_adaptive_threshold: true
+    whitelist: "0123456789.,KMkm "
+    expected_min_digits: 4
+    expected_max_digits: 7
   resource_threshold: 1000000
   resource_roi:
     x: 20
@@ -78,6 +87,10 @@ flow:
   use_return_button: false
   battle_screen_delay_seconds: 5
   next_base_delay_seconds: 2.5
+  battle_zoom_out:
+    enabled: true
+    scroll_clicks: 12
+    settle_seconds: 0.8
   post_deploy_min_seconds: 20
   battle_finished_assets:
     - return_button

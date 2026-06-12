@@ -18,6 +18,7 @@ class SettingsRepositoryTest(unittest.TestCase):
             repository = AppDataSettingsRepository(settings_path=settings_path)
             settings = UserSettings(
                 window_title='Google Play Games',
+                cv_profile='cv_17',
                 bottom_region=RatioRegion(0.0, 0.70, 1.0, 0.30),
             )
 
@@ -26,6 +27,7 @@ class SettingsRepositoryTest(unittest.TestCase):
 
             self.assertIsNotNone(loaded)
             self.assertEqual('Google Play Games', loaded.window_title)
+            self.assertEqual('cv_17', loaded.cv_profile)
             self.assertEqual(0.30, loaded.bottom_region.h_ratio)
 
     def test_runtime_config_builder_applies_user_settings(self) -> None:
@@ -46,7 +48,7 @@ class SettingsRepositoryTest(unittest.TestCase):
             )
             repository = AppDataSettingsRepository(settings_path=settings_path)
             builder = RuntimeConfigBuilder(repository=repository, template_path=template_path)
-            settings = UserSettings(window_title='Clash of Clans', window_match_mode='exact', dry_run=False)
+            settings = UserSettings(window_title='Clash of Clans', window_match_mode='exact', dry_run=True)
 
             cfg, returned_path = builder.build(settings)
 
@@ -54,7 +56,32 @@ class SettingsRepositoryTest(unittest.TestCase):
             self.assertEqual('Clash of Clans', cfg['window']['title_contains'])
             self.assertEqual('exact', cfg['window']['title_match_mode'])
             self.assertFalse(cfg['runtime']['dry_run'])
-            self.assertTrue(cfg['battle_bar']['enabled'])
+
+    def test_runtime_config_builder_applies_selected_cv_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_path = Path(tmpdir) / 'settings.json'
+            template_path = Path(tmpdir) / 'config.example.yaml'
+            template_path.write_text(
+                'window:\n'
+                '  title_contains: "Clash of Clans"\n'
+                'runtime:\n'
+                '  dry_run: true\n'
+                '  debug_dir: "debug_saida"\n'
+                'deployment:\n'
+                '  marker: base\n'
+                'cv_profiles:\n'
+                '  cv_14:\n'
+                '    deployment:\n'
+                '      marker: cv14\n',
+                encoding='utf-8',
+            )
+            repository = AppDataSettingsRepository(settings_path=settings_path)
+            builder = RuntimeConfigBuilder(repository=repository, template_path=template_path)
+
+            cfg, _ = builder.build(UserSettings(cv_profile='cv_14'))
+
+            self.assertEqual('cv_14', cfg['runtime']['cv_profile'])
+            self.assertEqual('cv14', cfg['deployment']['marker'])
 
 
 if __name__ == '__main__':

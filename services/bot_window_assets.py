@@ -12,7 +12,7 @@ from clients.window_client import JanelaRetangulo, capturar_janela_bgr, encontra
 from services.bot_shared import Correspondencia, ErroBot
 from utils.debug_utils import salvar_debug
 from utils.geometry_utils import resolver_roi
-from utils.input_actions import clicar_relativo
+from utils.input_actions import clicar_relativo, rolar_relativo
 from utils.template_matching import encontrar_template
 
 
@@ -56,6 +56,22 @@ class BotWindowAssetsMixin:
         self.aguardar_janela_alvo_ativa()
         retangulo = self.obter_janela()
         return retangulo, capturar_janela_bgr(retangulo)
+
+    def normalizar_zoom_batalha(self) -> None:
+        """Leva a vila ao limite de zoom-out antes de analisar ou clicar."""
+        zoom_cfg = self.cfg.get('flow', {}).get('battle_zoom_out', {})
+        if not bool(zoom_cfg.get('enabled', True)):
+            return
+        self.checkpoint_controle()
+        retangulo = self.obter_janela()
+        clicks = -abs(int(zoom_cfg.get('scroll_clicks', 12)))
+        rolar_relativo(
+            retangulo,
+            clicks=clicks,
+            dry_run=self.dry_run,
+            duration=self.duration,
+        )
+        self.dormir_interrompivel(float(zoom_cfg.get('settle_seconds', 0.8)))
 
     def resolver_caminho_asset(self, chave: str) -> Path:
         """Resolve o caminho absoluto de um asset a partir da chave do config."""

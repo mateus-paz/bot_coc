@@ -9,6 +9,7 @@ from typing import Any
 
 import cv2
 
+from battle_bar.domain import AvailabilityState, BattleBarSnapshot, SlotContentType, SlotLaneHint, SlotPosition
 from clients.window_client import JanelaRetangulo
 from services.bot_shared import ErroBot
 from utils.debug_utils import salvar_debug
@@ -27,6 +28,143 @@ from utils.input_actions import clicar_relativo, pressionar_tecla
 
 class BotDeploymentMixin:
     """Concentra a logica de calculo de pontos e soltura de tropas."""
+
+    def _coerce_slot_content_type(self, value: Any) -> SlotContentType:
+        """Converte strings de configuracao para o enum esperado."""
+        try:
+            return value if isinstance(value, SlotContentType) else SlotContentType(str(value))
+        except ValueError as exc:
+            raise ErroBot(f'deployment.scripted.slot_ref.content_type invalido: {value}') from exc
+
+    def _coerce_slot_lane(self, value: Any) -> SlotLaneHint:
+        """Converte aliases legados de secao para o enum de lane."""
+        if isinstance(value, SlotLaneHint):
+            return value
+        normalized = str(value).strip().lower()
+        aliases = {
+            'troops': SlotLaneHint.TROOP_SECTION,
+            'troop': SlotLaneHint.TROOP_SECTION,
+            'troop_section': SlotLaneHint.TROOP_SECTION,
+            'heroes': SlotLaneHint.HERO_SECTION,
+            'hero': SlotLaneHint.HERO_SECTION,
+            'hero_section': SlotLaneHint.HERO_SECTION,
+            'spells': SlotLaneHint.SPELL_SECTION,
+            'spell': SlotLaneHint.SPELL_SECTION,
+            'spell_section': SlotLaneHint.SPELL_SECTION,
+            'siege': SlotLaneHint.SIEGE_SECTION,
+            'siege_machine': SlotLaneHint.SIEGE_SECTION,
+            'siege_section': SlotLaneHint.SIEGE_SECTION,
+            'unknown': SlotLaneHint.UNKNOWN,
+        }
+        if normalized in aliases:
+            return aliases[normalized]
+        try:
+            return SlotLaneHint(normalized)
+        except ValueError as exc:
+            raise ErroBot(f'deployment.scripted.slot_ref.lane invalido: {value}') from exc
+
+    def _coerce_slot_availability(self, value: Any) -> AvailabilityState:
+        """Converte strings de disponibilidade para enum."""
+        try:
+            return value if isinstance(value, AvailabilityState) else AvailabilityState(str(value))
+        except ValueError as exc:
+            raise ErroBot(f'deployment.scripted.slot_ref.availability invalido: {value}') from exc
+
+    def _slot_matches_ref(self, slot: SlotPosition, slot_ref: dict[str, Any]) -> bool:
+        """Aplica os filtros declarativos de um slot_ref a um slot detectado."""
+        if slot.content is None:
+            return False
+        if 'slot_index' in slot_ref and int(slot_ref['slot_index']) != slot.index:
+            return False
+        if 'content_type' in slot_ref and self._coerce_slot_content_type(slot_ref['content_type']) != slot.content.type:
+            return False
+        if 'lane' in slot_ref and self._coerce_slot_lane(slot_ref['lane']) != slot.lane_hint:
+            return False
+        if 'availability' in slot_ref and self._coerce_slot_availability(slot_ref['availability']) != slot.content.state.availability:
+            return False
+        if 'selected' in slot_ref and bool(slot_ref['selected']) != bool(slot.content.state.selected):
+            return False
+        if 'min_quantity' in slot_ref:
+            quantity = slot.content.quantity_hint
+            if quantity is None or int(quantity) < int(slot_ref['min_quantity']):
+                return False
+        if 'max_quantity' in slot_ref:
+            quantity = slot.content.quantity_hint
+            if quantity is None or int(quantity) > int(slot_ref['max_quantity']):
+                return False
+        if 'content_name_contains' in slot_ref:
+            content_name = (slot.content.name or '').lower()
+            if str(slot_ref['content_name_contains']).strip().lower() not in content_name:
+                return False
+        return True
+
+    def _sort_slots_for_ref(self, slots: list[SlotPosition], slot_ref: dict[str, Any]) -> list[SlotPosition]:
+        """Ordena candidatos conforme preferencia declarativa do slot_ref."""
+        prefer = str(slot_ref.get('prefer', 'left_to_right')).strip().lower()
+        if prefer == 'highest_quantity':
+            return sorted(
+                slots,
+                key=lambda slot: (slot.content.quantity_hint if slot.content and slot.content.quantity_hint is not None else -1, -slot.index),
+                reverse=True,
+            )
+        if prefer == 'lowest_quantity':
+            return sorted(
+                slots,
+                key=lambda slot: (
+                    slot.content.quantity_hint if slot.content and slot.content.quantity_hint is not None else 10**9,
+                    slot.index,
+                ),
+            )
+        if prefer == 'right_to_left':
+            return sorted(slots, key=lambda slot: slot.index, reverse=True)
+        if prefer != 'left_to_right':
+            raise ErroBot(f'deployment.scripted.slot_ref.prefer invalido: {prefer}')
+        return sorted(slots, key=lambda slot: slot.index)
+
+    def resolver_slot_referencia(self, snapshot: BattleBarSnapshot, slot_ref: dict[str, Any]) -> SlotPosition:
+        """Resolve uma referencia declarativa para um slot detectado na battle bar."""
+        if not isinstance(slot_ref, dict) or not slot_ref:
+            raise ErroBot('deployment.scripted.slot_ref deve ser um mapa nao vazio.')
+        candidatos = [slot for slot in snapshot.slots if self._slot_matches_ref(slot, slot_ref)]
+        if not candidatos:
+            raise ErroBot(f'Nenhum slot detectado corresponde a deployment.scripted.slot_ref={slot_ref!r}')
+
+        ordenados = self._sort_slots_for_ref(candidatos, slot_ref)
+        occurrence = int(slot_ref.get('occurrence', 1))
+        if occurrence <= 0:
+            raise ErroBot('deployment.scripted.slot_ref.occurrence deve ser >= 1.')
+        if occurrence > len(ordenados):
+            raise ErroBot(
+                f'deployment.scripted.slot_ref.occurrence={occurrence} excede {len(ordenados)} candidato(s) para {slot_ref!r}'
+            )
+        return ordenados[occurrence - 1]
+
+    def resolver_ponto_selecao_roteiro(
+        self,
+        dimensoes_tela: tuple[int, int],
+        acao: dict[str, Any],
+        snapshot: BattleBarSnapshot | None,
+    ) -> tuple[int, int]:
+        """Resolve o ponto de selecao por coordenada fixa ou por slot detectado."""
+        slot_ref = acao.get('slot_ref')
+        cfg_ponto = acao.get('point') or acao.get('select_point')
+        if slot_ref:
+            if snapshot is None:
+                raise ErroBot('slot_ref exige battle_bar.enabled=true e snapshot valido.')
+            slot = self.resolver_slot_referencia(snapshot, slot_ref)
+            logging.info(
+                'Slot resolvido para %s: index=%s type=%s lane=%s quantity=%s center=%s',
+                acao.get('name', 'action'),
+                slot.index,
+                None if slot.content is None else slot.content.type.value,
+                slot.lane_hint.value,
+                None if slot.content is None else slot.content.quantity_hint,
+                slot.center,
+            )
+            return slot.center
+        if cfg_ponto:
+            return resolver_ponto(dimensoes_tela, cfg_ponto)
+        raise ErroBot("Acao roteirizada exige 'point', 'select_point' ou 'slot_ref'.")
 
     def calcular_pontos_deploy_seguro(self) -> list[tuple[int, int]]:
         """Calcula pontos seguros de deploy dentro da ROI configurada."""
@@ -197,6 +335,7 @@ class BotDeploymentMixin:
         _, tela = self.capturar_tela()
         altura_tela, largura_tela = tela.shape[:2]
         pontos_debug: list[tuple[int, int]] = []
+        snapshot = self.analyze_battle_bar() if self.battle_bar_analyzer is not None else None
 
         for acao in acoes:
             self.checkpoint_controle()
@@ -208,9 +347,8 @@ class BotDeploymentMixin:
                     logging.info('Selecionando %s por tecla=%s', nome, tecla)
                     pressionar_tecla(str(tecla), dry_run=self.dry_run)
                     self.dormir_interrompivel(self.calcular_atraso_clique_roteirizado())
-                cfg_ponto = acao.get('point')
-                if cfg_ponto:
-                    x, y = resolver_ponto((largura_tela, altura_tela), cfg_ponto)
+                if acao.get('point') or acao.get('slot_ref'):
+                    x, y = self.resolver_ponto_selecao_roteiro((largura_tela, altura_tela), acao, snapshot)
                     logging.info('Selecionando %s em (%s,%s)', nome, x, y)
                     pontos_debug.append((x, y))
                     self.clicar_ponto_roteiro(retangulo, x, y)
@@ -246,10 +384,7 @@ class BotDeploymentMixin:
 
             if tipo_acao == 'scatter_line_counted':
                 nome = acao.get('name', 'scatter_line_counted')
-                ponto_selecao = acao.get('select_point')
-                if not ponto_selecao:
-                    raise ErroBot('scatter_line_counted exige select_point.')
-                sx, sy = resolver_ponto((largura_tela, altura_tela), ponto_selecao)
+                sx, sy = self.resolver_ponto_selecao_roteiro((largura_tela, altura_tela), acao, snapshot)
                 quantidade = int(acao['count'])
                 meia_largura_px = float(acao.get('half_width_px', 18))
                 logging.info('Selecionando %s em (%s,%s) para %s cliques na linha.', nome, sx, sy, quantidade)
