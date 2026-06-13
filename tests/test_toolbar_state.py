@@ -25,7 +25,7 @@ class ToolbarStateTest(unittest.TestCase):
         self.assertTrue(controls.can_start)
         self.assertTrue(controls.can_change_profile)
         self.assertFalse(controls.can_pause)
-        self.assertFalse(controls.can_stop)
+        self.assertTrue(controls.can_stop)
 
     def test_running_allows_pause_and_stop(self) -> None:
         controls = resolve_toolbar_control_state(_status('running', running=True))
@@ -41,7 +41,7 @@ class ToolbarStateTest(unittest.TestCase):
         self.assertFalse(controls.can_start)
         self.assertFalse(controls.can_change_profile)
         self.assertFalse(controls.can_pause)
-        self.assertFalse(controls.can_stop)
+        self.assertTrue(controls.can_stop)
 
 
 if __name__ == '__main__':

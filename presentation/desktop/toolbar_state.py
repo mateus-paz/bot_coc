@@ -20,6 +20,6 @@ def resolve_toolbar_control_state(status) -> ToolbarControlState:
     return ToolbarControlState(
         can_start=status.state in {'idle', 'stopped', 'error'},
         can_pause=status.state == 'running',
-        can_stop=status.state == 'running',
+        can_stop=True,
         can_change_profile=not status.is_running,
     )

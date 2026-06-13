@@ -6,8 +6,11 @@ import logging
 import os
 import ctypes
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 try:
     import pytesseract
@@ -111,6 +114,14 @@ def _apply_hidden_process_options(kwargs: dict[str, Any]) -> None:
     kwargs['shell'] = False
 
 
+def build_hidden_subprocess_kwargs() -> dict[str, Any]:
+    """Retorna kwargs padrao para iniciar subprocessos sem console visivel no Windows."""
+    kwargs: dict[str, Any] = {}
+    if os.name == 'nt':
+        _apply_hidden_process_options(kwargs)
+    return kwargs
+
+
 class _HiddenSubprocessProxy:
     """Proxy local que protege toda chamada Popen feita pelo pytesseract."""
 
@@ -132,13 +143,7 @@ def pytesseract_required(cfg: dict[str, Any] | None = None) -> bool:
     if not cfg:
         return False
     vision_cfg = cfg.get('vision', {})
-    if str(vision_cfg.get('ocr_engine', 'pytesseract')) == 'pytesseract':
-        return True
-    quantity_cfg = cfg.get('battle_bar', {}).get('quantity_classifier', {})
-    backends = quantity_cfg.get('preferred_backends', [])
-    if isinstance(backends, list) and 'pytesseract' in backends:
-        return True
-    return False
+    return str(vision_cfg.get('ocr_engine', 'pytesseract')) == 'pytesseract'
 
 
 def validate_tesseract_runtime(cfg: dict[str, Any] | None = None) -> None:
@@ -153,3 +158,85 @@ def validate_tesseract_runtime(cfg: dict[str, Any] | None = None) -> None:
             'Tesseract OCR nao encontrado. Coloque o binario em runtime/tesseract/tesseract.exe '
             'ou configure vision.tesseract_cmd no config.yaml.'
         )
+
+
+def warm_up_tesseract_runtime(cfg: dict[str, Any] | None = None) -> Path | None:
+    """Configura e aquece o mesmo pipeline de OCR usado na leitura de recursos."""
+    if not pytesseract_required(cfg):
+        return None
+    if pytesseract is None:
+        raise ValueError('pytesseract nao esta instalado no ambiente atual.')
+
+    tesseract_cmd = configure_tesseract_runtime(cfg)
+    if tesseract_cmd is None:
+        raise ValueError(
+            'Tesseract OCR nao encontrado. Coloque o binario em runtime/tesseract/tesseract.exe '
+            'ou configure vision.tesseract_cmd no config.yaml.'
+        )
+
+    from utils.ocr_service import ler_numeros_por_ocr
+
+    warmup_image = np.full((32, 120, 3), 255, dtype=np.uint8)
+    warmup_image[6:26, 18:102] = 230
+    cv_cfg = {} if cfg is None else cfg.get('vision', {})
+    general_ocr_cfg = cv_cfg.get('pytesseract', {})
+    attack_loot_ocr_cfg = cv_cfg.get('attack_loot_ocr', general_ocr_cfg)
+    try:
+        ler_numeros_por_ocr(
+            warmup_image,
+            engine='pytesseract',
+            ocr_config=attack_loot_ocr_cfg,
+        )
+        ler_numeros_por_ocr(
+            warmup_image,
+            engine='pytesseract',
+            ocr_config=general_ocr_cfg,
+        )
+    except Exception as exc:
+        raise ValueError(f'Falha ao inicializar o Tesseract OCR: {exc}') from exc
+    logging.info('Warm-up do Tesseract concluido para OCR de saque e OCR geral.')
+    return tesseract_cmd
+
+
+def run_tesseract_tsv(image: np.ndarray, *, psm: int, whitelist: str, cfg: dict[str, Any] | None = None) -> str:
+    """Executa o tesseract.exe diretamente e retorna a saida TSV."""
+    tesseract_cmd = configure_tesseract_runtime(cfg)
+    if tesseract_cmd is None:
+        raise RuntimeError('Tesseract OCR nao configurado.')
+
+    with tempfile.TemporaryDirectory(prefix='playgames_tess_') as temp_dir:
+        temp_path = Path(temp_dir)
+        image_path = temp_path / 'ocr_input.png'
+        output_base = temp_path / 'ocr_output'
+        import cv2
+
+        if not cv2.imwrite(str(image_path), image):
+            raise RuntimeError('Falha ao gravar imagem temporaria para OCR.')
+
+        command = [
+            str(tesseract_cmd),
+            str(image_path),
+            str(output_base),
+            '--psm',
+            str(int(psm)),
+            '-c',
+            f'tessedit_char_whitelist={whitelist}',
+            'tsv',
+        ]
+        completed = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            text=True,
+            encoding='utf-8',
+            **build_hidden_subprocess_kwargs(),
+        )
+        if completed.returncode != 0:
+            stderr = completed.stderr.strip() or completed.stdout.strip()
+            raise RuntimeError(f'Tesseract retornou codigo {completed.returncode}: {stderr}')
+
+        tsv_path = output_base.with_suffix('.tsv')
+        if not tsv_path.exists():
+            raise RuntimeError('Tesseract nao gerou arquivo TSV.')
+        return tsv_path.read_text(encoding='utf-8', errors='replace')

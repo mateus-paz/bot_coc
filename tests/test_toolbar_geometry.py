@@ -17,15 +17,15 @@ class ToolbarGeometryTest(unittest.TestCase):
         toolbar_center = geometry.left + (geometry.width // 2)
         self.assertEqual(1450, toolbar_center)
         self.assertEqual(58, geometry.top)
-        self.assertEqual(500, geometry.width)
-        self.assertEqual(52, geometry.height)
+        self.assertEqual(470, geometry.width)
+        self.assertEqual(48, geometry.height)
 
     def test_clamps_width_to_maximum(self) -> None:
         target = WindowBounds(left=0, top=0, width=4000, height=2000)
 
         geometry = calculate_toolbar_geometry(target)
 
-        self.assertEqual(620, geometry.width)
+        self.assertEqual(590, geometry.width)
 
     def test_fits_inside_small_target_window(self) -> None:
         target = WindowBounds(left=200, top=100, width=320, height=240)

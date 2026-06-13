@@ -14,6 +14,14 @@ from utils.ocr_service import ler_numeros_por_ocr
 class BotTargetingMixin:
     """Reune leitura de recursos, leitura de saque e filtros de aprovacao de alvo."""
 
+    def _ocr_config_saque(self) -> dict:
+        """Retorna a configuracao de OCR especifica para leitura de saque em batalha."""
+        vision_cfg = self.cfg.get('vision', {})
+        attack_loot_cfg = vision_cfg.get('attack_loot_ocr', {})
+        if isinstance(attack_loot_cfg, dict) and attack_loot_cfg:
+            return attack_loot_cfg
+        return vision_cfg.get('pytesseract', {})
+
     def ler_valores_recursos(self, *, salvar_imagem_debug: bool = True) -> list[int]:
         """Le os valores da ROI principal de recurso para o filtro classico."""
         _, tela = self.capturar_tela()
@@ -55,7 +63,7 @@ class BotTargetingMixin:
             valores = ler_numeros_por_ocr(
                 roi,
                 engine=self.ocr_engine,
-                ocr_config=self.cfg.get('vision', {}).get('pytesseract', {}),
+                ocr_config=self._ocr_config_saque(),
             )
             saque[nome_recurso] = valores[0] if valores else None
             logging.info(
@@ -83,7 +91,8 @@ class BotTargetingMixin:
 
     def aguardar_saque_ataque_pronto(self) -> dict[str, int | None]:
         """Aguarda a tela estabilizar ate o OCR de saque retornar algum valor."""
-        timeout = float(self.cfg.get('flow', {}).get('battle_screen_delay_seconds', 5))
+        fluxo = self.cfg.get('flow', {})
+        timeout = float(fluxo.get('attack_loot_ready_timeout_seconds', fluxo.get('battle_screen_delay_seconds', 5)))
         inicio = time.time()
         while time.time() - inicio < timeout:
             self.checkpoint_controle()
@@ -112,9 +121,37 @@ class BotTargetingMixin:
         if not isinstance(minimos, dict) or not minimos:
             return True
 
+        fluxo = self.cfg.get('flow', {})
         aprovado = True
         avaliacoes: list[str] = []
+        gold_min = minimos.get('gold')
+        elixir_min = minimos.get('elixir')
+        if gold_min is not None and elixir_min is not None:
+            gold_atual = saque.get('gold')
+            elixir_atual = saque.get('elixir')
+            total_minimo = int(fluxo.get('attack_loot_total_minimum', 1_000_000))
+            total_atual = (
+                int(gold_atual) + int(elixir_atual)
+                if gold_atual is not None and elixir_atual is not None
+                else None
+            )
+            gold_ok = gold_atual is not None and int(gold_atual) >= int(gold_min)
+            elixir_ok = elixir_atual is not None and int(elixir_atual) >= int(elixir_min)
+            total_ok = total_atual is not None and total_atual >= total_minimo
+            combinado_ok = total_ok and (gold_ok or elixir_ok)
+            avaliacoes.append(
+                'gold_elixir='
+                f'gold:{gold_atual}>={int(gold_min)}:{gold_ok},'
+                f'elixir:{elixir_atual}>={int(elixir_min)}:{elixir_ok},'
+                f'total:{total_atual}>={total_minimo}:{total_ok},'
+                f'combinado:{combinado_ok}'
+            )
+            if not combinado_ok:
+                aprovado = False
+
         for nome_recurso, valor_minimo in minimos.items():
+            if nome_recurso in {'gold', 'elixir'} and gold_min is not None and elixir_min is not None:
+                continue
             valor_atual = saque.get(nome_recurso)
             minimo_int = int(valor_minimo)
             recurso_ok = valor_atual is not None and int(valor_atual) >= minimo_int
@@ -140,7 +177,6 @@ class BotTargetingMixin:
             self.clicar_asset('next_button', required=True, timeout=10.0)
             logging.info('Aguardando render da proxima base por %.2fs', atraso_proxima_base)
             self.dormir_interrompivel(atraso_proxima_base)
-            self.normalizar_zoom_batalha()
         raise ErroBot('Limite de proximas bases atingido sem encontrar saque aprovado.')
 
     def encontrar_alvo(self) -> None:

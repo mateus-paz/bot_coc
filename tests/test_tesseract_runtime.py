@@ -12,7 +12,10 @@ from unittest.mock import Mock, patch
 from utils.tesseract_runtime import (
     _HiddenSubprocessProxy,
     _configure_hidden_tesseract_subprocess,
+    build_hidden_subprocess_kwargs,
     resolve_tesseract_cmd,
+    run_tesseract_tsv,
+    warm_up_tesseract_runtime,
 )
 
 
@@ -76,6 +79,67 @@ class TesseractRuntimeTest(unittest.TestCase):
         self.assertFalse(kwargs['shell'])
         self.assertEqual(subprocess.SW_HIDE, kwargs['startupinfo'].wShowWindow)
         self.assertTrue(kwargs['startupinfo'].dwFlags & subprocess.STARTF_USESHOWWINDOW)
+
+    def test_build_hidden_subprocess_kwargs_sets_windows_no_console_flags(self) -> None:
+        with patch('utils.tesseract_runtime.os.name', 'nt'):
+            kwargs = build_hidden_subprocess_kwargs()
+
+        self.assertIn('startupinfo', kwargs)
+        self.assertTrue(kwargs['creationflags'] & subprocess.CREATE_NO_WINDOW)
+        self.assertFalse(kwargs['shell'])
+
+    def test_run_tesseract_tsv_returns_generated_tsv(self) -> None:
+        completed = Mock(returncode=0, stdout='', stderr='')
+
+        def fake_run(command, **kwargs):
+            output_base = Path(command[2])
+            output_base.with_suffix('.tsv').write_text('level\ttext\tconf\n5\t123\t95\n', encoding='utf-8')
+            return completed
+
+        with (
+            patch('utils.tesseract_runtime.configure_tesseract_runtime', return_value=Path('C:/fake/runtime/tesseract.exe')),
+            patch('utils.tesseract_runtime.subprocess.run', side_effect=fake_run),
+        ):
+            import numpy as np
+
+            tsv = run_tesseract_tsv(np.full((10, 10), 255, dtype=np.uint8), psm=7, whitelist='123')
+
+        self.assertIn('123', tsv)
+
+    def test_warmup_runs_minimal_ocr_after_configuring_runtime(self) -> None:
+        target = Path('C:/fake/runtime/tesseract.exe')
+        cfg = {
+            'vision': {
+                'ocr_engine': 'pytesseract',
+                'pytesseract': {'psm_modes': [7, 6]},
+                'attack_loot_ocr': {'psm_modes': [7]},
+            }
+        }
+        fake_ocr = Mock(return_value=[123456])
+
+        with (
+            patch('utils.tesseract_runtime.pytesseract_required', return_value=True),
+            patch('utils.tesseract_runtime.pytesseract', object()),
+            patch('utils.tesseract_runtime.configure_tesseract_runtime', return_value=target),
+            patch('utils.ocr_service.ler_numeros_por_ocr', fake_ocr),
+        ):
+            resolved = warm_up_tesseract_runtime(cfg)
+
+        self.assertEqual(target, resolved)
+        self.assertEqual(2, fake_ocr.call_count)
+
+    def test_warmup_raises_when_runtime_call_fails(self) -> None:
+        cfg = {'vision': {'ocr_engine': 'pytesseract'}}
+        fake_ocr = Mock(side_effect=RuntimeError('boom'))
+
+        with (
+            patch('utils.tesseract_runtime.pytesseract_required', return_value=True),
+            patch('utils.tesseract_runtime.pytesseract', object()),
+            patch('utils.tesseract_runtime.configure_tesseract_runtime', return_value=Path('C:/fake/runtime/tesseract.exe')),
+            patch('utils.ocr_service.ler_numeros_por_ocr', fake_ocr),
+        ):
+            with self.assertRaisesRegex(ValueError, 'Falha ao inicializar o Tesseract OCR'):
+                warm_up_tesseract_runtime(cfg)
 
 
 if __name__ == '__main__':

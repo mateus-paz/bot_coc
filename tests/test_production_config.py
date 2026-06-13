@@ -37,6 +37,9 @@ class ProductionConfigTest(unittest.TestCase):
                 self.assertEqual('start_button', cfg['flow']['pre_search_steps'][0])
                 self.assertTrue(cfg['flow']['battle_zoom_out']['enabled'])
                 self.assertEqual(12, cfg['flow']['battle_zoom_out']['scroll_clicks'])
+                self.assertEqual(2, cfg['flow']['battle_screen_delay_seconds'])
+                self.assertEqual(2.5, cfg['flow']['attack_loot_ready_timeout_seconds'])
+                self.assertEqual([7], cfg['vision']['attack_loot_ocr']['psm_modes'])
 
     def test_cv13_and_cv14_share_script_and_cv17_is_distinct(self) -> None:
         cv13 = self._build('cv_13')

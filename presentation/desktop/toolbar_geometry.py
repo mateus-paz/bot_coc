@@ -20,12 +20,12 @@ class ToolbarGeometry:
 def calculate_toolbar_geometry(
     target: WindowBounds,
     *,
-    width_ratio: float = 0.22,
+    width_ratio: float = 0.21,
     center_x_ratio: float = 0.75,
     top_offset: int = 8,
-    min_width: int = 500,
-    max_width: int = 620,
-    height: int = 52,
+    min_width: int = 470,
+    max_width: int = 590,
+    height: int = 48,
 ) -> ToolbarGeometry:
     """Ancora a barra na quinta de seis faixas horizontais da area cliente."""
     available_width = max(1, target.width)

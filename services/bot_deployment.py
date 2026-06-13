@@ -5,11 +5,10 @@ from __future__ import annotations
 import logging
 import random
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
 
-from battle_bar.domain import AvailabilityState, BattleBarSnapshot, SlotContentType, SlotLaneHint, SlotPosition
 from clients.window_client import JanelaRetangulo
 from services.bot_shared import ErroBot
 from utils.debug_utils import salvar_debug
@@ -25,19 +24,26 @@ from utils.deploy_utils import (
 from utils.geometry_utils import extrair_roi, gerar_pontos_aleatorios_em_faixa, resolver_ponto
 from utils.input_actions import clicar_relativo, pressionar_tecla
 
+if TYPE_CHECKING:
+    from battle_bar.domain import BattleBarSnapshot, SlotPosition
+
 
 class BotDeploymentMixin:
     """Concentra a logica de calculo de pontos e soltura de tropas."""
 
-    def _coerce_slot_content_type(self, value: Any) -> SlotContentType:
+    def _coerce_slot_content_type(self, value: Any):
         """Converte strings de configuracao para o enum esperado."""
+        from battle_bar.domain import SlotContentType
+
         try:
             return value if isinstance(value, SlotContentType) else SlotContentType(str(value))
         except ValueError as exc:
             raise ErroBot(f'deployment.scripted.slot_ref.content_type invalido: {value}') from exc
 
-    def _coerce_slot_lane(self, value: Any) -> SlotLaneHint:
+    def _coerce_slot_lane(self, value: Any):
         """Converte aliases legados de secao para o enum de lane."""
+        from battle_bar.domain import SlotLaneHint
+
         if isinstance(value, SlotLaneHint):
             return value
         normalized = str(value).strip().lower()
@@ -63,14 +69,16 @@ class BotDeploymentMixin:
         except ValueError as exc:
             raise ErroBot(f'deployment.scripted.slot_ref.lane invalido: {value}') from exc
 
-    def _coerce_slot_availability(self, value: Any) -> AvailabilityState:
+    def _coerce_slot_availability(self, value: Any):
         """Converte strings de disponibilidade para enum."""
+        from battle_bar.domain import AvailabilityState
+
         try:
             return value if isinstance(value, AvailabilityState) else AvailabilityState(str(value))
         except ValueError as exc:
             raise ErroBot(f'deployment.scripted.slot_ref.availability invalido: {value}') from exc
 
-    def _slot_matches_ref(self, slot: SlotPosition, slot_ref: dict[str, Any]) -> bool:
+    def _slot_matches_ref(self, slot: 'SlotPosition', slot_ref: dict[str, Any]) -> bool:
         """Aplica os filtros declarativos de um slot_ref a um slot detectado."""
         if slot.content is None:
             return False
@@ -98,7 +106,7 @@ class BotDeploymentMixin:
                 return False
         return True
 
-    def _sort_slots_for_ref(self, slots: list[SlotPosition], slot_ref: dict[str, Any]) -> list[SlotPosition]:
+    def _sort_slots_for_ref(self, slots: list['SlotPosition'], slot_ref: dict[str, Any]) -> list['SlotPosition']:
         """Ordena candidatos conforme preferencia declarativa do slot_ref."""
         prefer = str(slot_ref.get('prefer', 'left_to_right')).strip().lower()
         if prefer == 'highest_quantity':
@@ -121,7 +129,7 @@ class BotDeploymentMixin:
             raise ErroBot(f'deployment.scripted.slot_ref.prefer invalido: {prefer}')
         return sorted(slots, key=lambda slot: slot.index)
 
-    def resolver_slot_referencia(self, snapshot: BattleBarSnapshot, slot_ref: dict[str, Any]) -> SlotPosition:
+    def resolver_slot_referencia(self, snapshot: 'BattleBarSnapshot', slot_ref: dict[str, Any]) -> 'SlotPosition':
         """Resolve uma referencia declarativa para um slot detectado na battle bar."""
         if not isinstance(slot_ref, dict) or not slot_ref:
             raise ErroBot('deployment.scripted.slot_ref deve ser um mapa nao vazio.')
@@ -143,7 +151,7 @@ class BotDeploymentMixin:
         self,
         dimensoes_tela: tuple[int, int],
         acao: dict[str, Any],
-        snapshot: BattleBarSnapshot | None,
+        snapshot: 'BattleBarSnapshot | None',
     ) -> tuple[int, int]:
         """Resolve o ponto de selecao por coordenada fixa ou por slot detectado."""
         slot_ref = acao.get('slot_ref')

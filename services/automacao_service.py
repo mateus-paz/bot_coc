@@ -5,9 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import Any
-
-from battle_bar import DefaultActionPlanner, DefaultBattleBarAnalyzer
+from typing import TYPE_CHECKING, Any
 from config import resolver_diretorio_aplicacao, resolver_diretorio_bundle
 from services.bot_controller import BotController
 from services.bot_deployment import BotDeploymentMixin
@@ -16,6 +14,9 @@ from services.bot_shared import ErroBot, listar_passos_assets, listar_passos_pre
 from services.bot_targeting import BotTargetingMixin
 from services.bot_window_assets import BotWindowAssetsMixin
 from utils.debug_utils import configurar_logging
+
+if TYPE_CHECKING:
+    from battle_bar import DefaultActionPlanner, DefaultBattleBarAnalyzer
 
 
 class PlayGamesAppBot(
@@ -77,22 +78,26 @@ class PlayGamesAppBot(
         logging.info('Dry-run: %s', self.dry_run)
         logging.info('Debug imagens: %s', self.modo_debug_imagens)
 
-    def _construir_battle_bar_analyzer(self) -> DefaultBattleBarAnalyzer | None:
+    def _construir_battle_bar_analyzer(self):
         """Cria o analisador da barra quando a feature estiver configurada."""
         cfg_battle_bar = self.cfg.get('battle_bar')
         if not isinstance(cfg_battle_bar, dict) or not bool(cfg_battle_bar.get('enabled', False)):
             return None
+        from battle_bar import DefaultBattleBarAnalyzer
+
         return DefaultBattleBarAnalyzer(
             cfg_battle_bar,
             asset_base_dir=self.diretorio_base,
             template_confidence=self.confidence,
         )
 
-    def _construir_battle_bar_planner(self) -> DefaultActionPlanner | None:
+    def _construir_battle_bar_planner(self):
         """Cria o planejador de acoes para os slots, quando habilitado."""
         cfg_battle_bar = self.cfg.get('battle_bar')
         if not isinstance(cfg_battle_bar, dict) or not bool(cfg_battle_bar.get('enabled', False)):
             return None
+        from battle_bar import DefaultActionPlanner
+
         return DefaultActionPlanner(cfg_battle_bar.get('planner', {}))
 
     def analyze_battle_bar(self):

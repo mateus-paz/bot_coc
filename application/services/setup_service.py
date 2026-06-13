@@ -6,7 +6,6 @@ import cv2
 import numpy as np
 
 from application.dto import PreviewResultDTO, SlotInfoDTO, WindowInfoDTO
-from battle_bar.domain import SlotPosition
 from core.vision.pipeline import extract_ratio_region
 from domain.settings.entities import UserSettings
 
@@ -14,7 +13,7 @@ from domain.settings.entities import UserSettings
 class SetupService:
     """Orquestra localizacao de janela, previews e persistencia."""
 
-    def __init__(self, *, window_locator, screen_capture, battle_bar_analyzer, settings_repository) -> None:
+    def __init__(self, *, window_locator, screen_capture, battle_bar_analyzer=None, settings_repository) -> None:
         self.window_locator = window_locator
         self.screen_capture = screen_capture
         self.battle_bar_analyzer = battle_bar_analyzer
@@ -73,6 +72,8 @@ class SetupService:
 
     def detect_slots_preview(self, settings: UserSettings) -> tuple[PreviewResultDTO, list[SlotInfoDTO]]:
         """Executa deteccao dos slots e devolve overlay + lista resumida."""
+        if self.battle_bar_analyzer is None:
+            raise ValueError('Deteccao de slots indisponivel neste runtime desktop.')
         window = self.window_locator.find_target_window(settings.window_title, settings.window_match_mode, settings.activate_window)
         frame = self.screen_capture.capture_window(window)
         snapshot = self.battle_bar_analyzer.analyze(frame, settings)

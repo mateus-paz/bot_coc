@@ -37,6 +37,14 @@ vision:
     whitelist: "0123456789.,KMkm "
     expected_min_digits: 4
     expected_max_digits: 7
+  attack_loot_ocr:
+    psm_modes: [7]
+    upscale_factor: 2.0
+    blur_kernel: 1
+    use_adaptive_threshold: false
+    whitelist: "0123456789.,KMkm "
+    expected_min_digits: 4
+    expected_max_digits: 7
   resource_threshold: 1000000
   resource_roi:
     x: 20
@@ -68,6 +76,7 @@ flow:
   attack_loot_minimums:
     gold: 500000
     elixir: 500000
+  attack_loot_total_minimum: 1000000
   pre_search_steps:
     - start_button
     - procurar_partida
@@ -85,7 +94,8 @@ flow:
   use_confirm_action_button: false
   use_end_action_button: false
   use_return_button: false
-  battle_screen_delay_seconds: 5
+  battle_screen_delay_seconds: 2
+  attack_loot_ready_timeout_seconds: 2.5
   next_base_delay_seconds: 2.5
   battle_zoom_out:
     enabled: true

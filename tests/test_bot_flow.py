@@ -8,11 +8,12 @@ from services.bot_flow import BotFlowMixin
 
 
 class _FlowHarness(BotFlowMixin):
-    def __init__(self) -> None:
+    def __init__(self, *, filtro_saque_ativo: bool = False) -> None:
         self.cfg = {
             'flow': {
                 'target_mode': 'direct_attack',
                 'battle_screen_delay_seconds': 5,
+                'attack_loot_ready_timeout_seconds': 5,
                 'pre_search_step_timeouts': {},
                 'pre_search_step_after_delays': {},
             }
@@ -21,6 +22,7 @@ class _FlowHarness(BotFlowMixin):
         self.optional_pre_search_steps = set()
         self.after_button = 0.5
         self.events: list[str] = []
+        self._filtro_saque_ativo = filtro_saque_ativo
 
     def checkpoint_controle(self) -> None:
         return None
@@ -32,7 +34,11 @@ class _FlowHarness(BotFlowMixin):
         self.events.append('zoom_out')
 
     def filtro_saque_ativo(self) -> bool:
-        return False
+        return self._filtro_saque_ativo
+
+    def encontrar_alvo_por_saque(self):
+        self.events.append('loot_validated')
+        return {'gold': 500000, 'elixir': 500000}
 
     def ler_saque_ataque(self):
         self.events.append('loot')
@@ -49,12 +55,20 @@ class _FlowHarness(BotFlowMixin):
 
 
 class BotFlowTest(unittest.TestCase):
-    def test_zoom_out_happens_before_loot_and_deploy(self) -> None:
+    def test_zoom_out_happens_after_loot_read_and_before_deploy(self) -> None:
         harness = _FlowHarness()
 
         harness.executar_um_ciclo()
 
-        self.assertLess(harness.events.index('zoom_out'), harness.events.index('loot'))
+        self.assertLess(harness.events.index('loot'), harness.events.index('zoom_out'))
+        self.assertLess(harness.events.index('zoom_out'), harness.events.index('deploy'))
+
+    def test_zoom_out_happens_after_validated_loot_and_before_deploy(self) -> None:
+        harness = _FlowHarness(filtro_saque_ativo=True)
+
+        harness.executar_um_ciclo()
+
+        self.assertLess(harness.events.index('loot_validated'), harness.events.index('zoom_out'))
         self.assertLess(harness.events.index('zoom_out'), harness.events.index('deploy'))
 
 

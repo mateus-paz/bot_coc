@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import logging
 import time
 
@@ -11,6 +12,9 @@ from clients.window_client import JanelaRetangulo
 
 pyautogui.FAILSAFE = True
 pyautogui.PAUSE = 0.02
+
+MOUSEEVENTF_WHEEL = 0x0800
+WHEEL_DELTA = 120
 
 
 def clicar_relativo(retangulo: JanelaRetangulo, x: int, y: int, *, dry_run: bool, duration: float) -> None:
@@ -48,4 +52,18 @@ def rolar_relativo(
     if dry_run:
         return
     pyautogui.moveTo(centro_x, centro_y, duration=duration)
-    pyautogui.scroll(clicks)
+    direcao = 1 if clicks > 0 else -1
+    for _ in range(abs(clicks)):
+        _scroll_mouse_wheel_windows(direcao)
+        time.sleep(0.02)
+
+
+def _scroll_mouse_wheel_windows(steps: int) -> None:
+    """Dispara wheel nativo do Windows para maior compatibilidade com jogos/apps."""
+    ctypes.windll.user32.mouse_event(
+        MOUSEEVENTF_WHEEL,
+        0,
+        0,
+        steps * WHEEL_DELTA,
+        0,
+    )

@@ -15,9 +15,6 @@ from battle_bar.domain import AvailabilityState, ContentState, DetectorKind, Slo
 from utils.geometry_utils import extrair_roi
 from utils.template_matching import ler_imagem
 
-easyocr = None
-_easyocr_import_attempted = False
-
 
 def _type_from_lane(lane: SlotLaneHint) -> SlotContentType:
     mapping = {
@@ -129,22 +126,12 @@ class OcrContentQuantityClassifier:
 
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
-        self._easyocr_reader = None
         self._tesseract_available: bool | None = None
 
     def _backend_order(self) -> list[str]:
         """Retorna a ordem configurada de backends OCR para quantidade."""
-        configured = self.config.get('preferred_backends', ['pytesseract', 'easyocr'])
-        if not isinstance(configured, list) or not configured:
-            return ['pytesseract', 'easyocr']
-        normalized = []
-        for backend in configured:
-            value = str(backend).strip().lower()
-            if value not in {'pytesseract', 'easyocr'}:
-                continue
-            if value not in normalized:
-                normalized.append(value)
-        return normalized or ['pytesseract', 'easyocr']
+        _ = self.config.get('preferred_backends', ['pytesseract'])
+        return ['pytesseract']
 
     def classify(self, frame: np.ndarray, slot: SlotPosition, content: SlotContent) -> SlotContent:
         metadata = dict(content.metadata)
@@ -309,9 +296,6 @@ class OcrContentQuantityClassifier:
             for backend in self._backend_order():
                 if backend == 'pytesseract':
                     results.extend(self._run_tesseract(variant, allowlist='0123456789'))
-                    continue
-                if backend == 'easyocr':
-                    results.extend(self._run_easyocr(variant, allowlist='0123456789'))
         return results
 
     def _run_ocr_candidates(self, roi: np.ndarray) -> list[tuple[str, str, float]]:
@@ -321,9 +305,6 @@ class OcrContentQuantityClassifier:
             for backend in self._backend_order():
                 if backend == 'pytesseract':
                     results.extend(self._run_tesseract(variant))
-                    continue
-                if backend == 'easyocr':
-                    results.extend(self._run_easyocr(variant))
         return results
 
     def _build_ocr_variants(self, roi: np.ndarray) -> list[np.ndarray]:
@@ -381,41 +362,6 @@ class OcrContentQuantityClassifier:
             outputs.append((f'{DetectorKind.OCR.value}_psm{int(psm)}', ''.join(texts), confidence_score))
         self._tesseract_available = succeeded
         return outputs
-
-    def _run_easyocr(self, image: np.ndarray, *, allowlist: str = 'xX0123456789') -> list[tuple[str, str, float]]:
-        reader = self._get_easyocr_reader()
-        if reader is None:
-            return []
-        try:
-            result = reader.readtext(image, detail=1, allowlist=allowlist, paragraph=False, decoder='greedy')
-        except Exception:
-            return []
-        outputs: list[tuple[str, str, float]] = []
-        for _, text, confidence in result:
-            normalized = str(text).strip()
-            if not normalized:
-                continue
-            outputs.append((f'{DetectorKind.OCR.value}_easyocr', normalized, float(confidence)))
-        return outputs
-
-    def _get_easyocr_reader(self):
-        global easyocr, _easyocr_import_attempted
-        if easyocr is None and not _easyocr_import_attempted:
-            _easyocr_import_attempted = True
-            try:
-                import easyocr as easyocr_module
-            except Exception:
-                easyocr = False
-            else:
-                easyocr = easyocr_module
-        if easyocr in (None, False):
-            return None
-        if self._easyocr_reader is None:
-            try:
-                self._easyocr_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
-            except Exception:
-                self._easyocr_reader = False
-        return None if self._easyocr_reader is False else self._easyocr_reader
 
     @classmethod
     def _parse_quantity(cls, text: str | None) -> int | None:

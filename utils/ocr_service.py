@@ -5,17 +5,13 @@ from __future__ import annotations
 import logging
 import re
 from typing import Any
+from io import StringIO
 
 import cv2
 import numpy as np
+import csv
 
-try:
-    import pytesseract
-except Exception:
-    pytesseract = None
-
-easyocr = None
-_easyocr_import_attempted = False
+from utils.tesseract_runtime import run_tesseract_tsv
 
 
 def normalizar_numero_ocr(token: str) -> int | None:
@@ -40,9 +36,6 @@ def normalizar_numero_ocr(token: str) -> int | None:
     if not digitos:
         return None
     return int(digitos) * multiplicador
-
-
-leitor_easyocr: Any = None
 
 
 def _resolve_psm_modes(config: dict[str, Any] | None, *, default: list[int]) -> list[int]:
@@ -96,20 +89,17 @@ def _build_pytesseract_variants(imagem_bgr: np.ndarray, config: dict[str, Any] |
 
 
 def _run_pytesseract_with_confidence(image: np.ndarray, *, psm: int, whitelist: str) -> tuple[str, float]:
-    data = pytesseract.image_to_data(
-        image,
-        config=f'--psm {psm} -c tessedit_char_whitelist={whitelist}',
-        output_type=pytesseract.Output.DICT,
-    )
+    tsv_output = run_tesseract_tsv(image, psm=psm, whitelist=whitelist)
+    reader = csv.DictReader(StringIO(tsv_output), delimiter='\t')
     texts: list[str] = []
     confidences: list[float] = []
-    for text, confidence in zip(data.get('text', []), data.get('conf', [])):
-        normalized = str(text).strip()
+    for row in reader:
+        normalized = str(row.get('text', '')).strip()
         if not normalized:
             continue
         texts.append(normalized)
         try:
-            confidences.append(float(confidence))
+            confidences.append(float(row.get('conf', '-1')))
         except (TypeError, ValueError):
             continue
     if not texts:
@@ -153,9 +143,6 @@ def _score_numeric_ocr_candidate(text: str, confidence: float, config: dict[str,
 
 def extrair_texto_pytesseract(imagem_bgr: np.ndarray, config: dict[str, Any] | None = None) -> str:
     """Extrai texto via pytesseract com preprocessamento calibravel."""
-    if pytesseract is None:
-        logging.warning('pytesseract indisponivel; OCR desativado na pratica.')
-        return ''
     cfg = config or {}
     whitelist = str(cfg.get('whitelist', '0123456789.,KMkm '))
     psm_modes = _resolve_psm_modes(cfg, default=[6, 7, 11])
@@ -184,38 +171,15 @@ def extrair_texto_pytesseract(imagem_bgr: np.ndarray, config: dict[str, Any] | N
     return best_text
 
 
-def extrair_texto_easyocr(imagem_bgr: np.ndarray) -> str:
-    """Extrai texto via EasyOCR com cache do reader."""
-    global leitor_easyocr, easyocr, _easyocr_import_attempted
-    if easyocr is None and not _easyocr_import_attempted:
-        _easyocr_import_attempted = True
-        try:
-            import easyocr as easyocr_module
-        except Exception:
-            easyocr = False
-        else:
-            easyocr = easyocr_module
-    if easyocr in (None, False):
-        logging.warning('easyocr indisponivel; OCR desativado na pratica.')
-        return ''
-    if leitor_easyocr is None:
-        leitor_easyocr = easyocr.Reader(['en'], gpu=False, verbose=False)
-    cinza = cv2.cvtColor(imagem_bgr, cv2.COLOR_BGR2GRAY)
-    cinza = cv2.resize(cinza, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
-    resultado = leitor_easyocr.readtext(cinza, detail=0, paragraph=False, allowlist='0123456789.,KMkm')
-    return ' '.join(str(item) for item in resultado)
-
-
 def ler_numeros_por_ocr(
     imagem_bgr: np.ndarray,
     engine: str = 'pytesseract',
     ocr_config: dict[str, Any] | None = None,
 ) -> list[int]:
-    """Executa OCR no engine selecionado e converte os tokens numericos encontrados."""
-    if engine == 'easyocr':
-        texto = extrair_texto_easyocr(imagem_bgr)
-    else:
-        texto = extrair_texto_pytesseract(imagem_bgr, config=ocr_config)
+    """Executa OCR via pytesseract e converte os tokens numericos encontrados."""
+    if engine != 'pytesseract':
+        logging.warning('OCR engine=%s nao suportado no build final; usando pytesseract.', engine)
+    texto = extrair_texto_pytesseract(imagem_bgr, config=ocr_config)
     tokens = re.findall(r'[0-9][0-9., ]*[KkMm]?', texto)
     valores = []
     for token in tokens:

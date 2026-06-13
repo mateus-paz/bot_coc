@@ -61,6 +61,10 @@ assets:
 
 flow:
   target_mode: direct_attack
+  attack_loot_minimums:
+    gold: 500000
+    elixir: 500000
+  attack_loot_total_minimum: 1000000
   pre_search_steps:
     - start_button
     - search_button

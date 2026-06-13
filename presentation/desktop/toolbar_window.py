@@ -5,8 +5,9 @@ from __future__ import annotations
 from dataclasses import replace
 
 from PySide6.QtCore import QPoint, QTimer, Qt
-from PySide6.QtGui import QCloseEvent, QMouseEvent
+from PySide6.QtGui import QCloseEvent, QIcon, QKeySequence, QMouseEvent, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -15,6 +16,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from config import resolver_diretorio_bundle
+from presentation.desktop.global_hotkeys import GlobalHotkeyManager, VK_F1, VK_F2, VK_F3
 from presentation.desktop.toolbar_geometry import calculate_toolbar_geometry
 from presentation.desktop.toolbar_state import resolve_toolbar_control_state
 
@@ -36,16 +39,22 @@ class ToolbarWindow(QWidget):
         automation_service,
         settings,
         target_window,
+        global_hotkey_manager: GlobalHotkeyManager | None = None,
     ) -> None:
         super().__init__()
         self.setup_service = setup_service
         self.automation_service = automation_service
         self.settings = settings
+        self.global_hotkey_manager = global_hotkey_manager or GlobalHotkeyManager(
+            QApplication.instance()
+        )
         self.target_window_id = target_window.window_id
         self._missing_window_checks = 0
         self._closing = False
+        self._stop_requested_by_exit = False
         self._last_error_message = ''
         self._drag_offset: QPoint | None = None
+        self._fallback_shortcuts: list[QShortcut] = []
 
         if self.target_window_id is None:
             raise ValueError('A janela alvo nao possui identificador nativo.')
@@ -73,8 +82,8 @@ class ToolbarWindow(QWidget):
 
     def _build_ui(self) -> None:
         root = QHBoxLayout(self)
-        root.setContentsMargins(8, 7, 8, 7)
-        root.setSpacing(7)
+        root.setContentsMargins(6, 5, 6, 5)
+        root.setSpacing(5)
 
         self.cv_combo = QComboBox()
         for label, profile in CV_PROFILES:
@@ -90,22 +99,21 @@ class ToolbarWindow(QWidget):
         self.pin_button = QPushButton('Pin')
         self.pin_button.setCheckable(True)
         self.pin_button.setToolTip('Bloquear a posicao da barra')
+        self._apply_action_icons()
         self.version_label = QLabel('Beta version 0.0.1')
         self.version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.cv_combo.setFixedWidth(68)
-        for button in (
-            self.start_button,
-            self.pause_button,
-            self.stop_button,
-            self.pin_button,
-        ):
-            button.setFixedWidth(58)
-        self.version_label.setFixedWidth(130)
+        self.start_button.setFixedSize(34, 30)
+        self.pause_button.setFixedSize(38, 30)
+        self.stop_button.setFixedSize(38, 30)
+        self.pin_button.setFixedSize(40, 30)
+        self.version_label.setFixedWidth(116)
 
         self.start_button.clicked.connect(self._handle_start)
         self.pause_button.clicked.connect(self._handle_pause)
         self.stop_button.clicked.connect(self._handle_stop)
         self.pin_button.toggled.connect(self._handle_pin_toggled)
+        self._configure_shortcuts()
 
         root.addWidget(self.cv_combo)
         root.addWidget(self.start_button)
@@ -134,6 +142,9 @@ class ToolbarWindow(QWidget):
             QComboBox:hover, QPushButton:hover {
                 border-color: #3b82f6;
             }
+            QPushButton[iconOnly="true"] {
+                padding: 0;
+            }
             QPushButton:checked {
                 color: #ffffff;
                 background: #2563eb;
@@ -159,7 +170,68 @@ class ToolbarWindow(QWidget):
             """
         )
 
+    def _asset_icon(self, file_name: str) -> QIcon:
+        icon_path = resolver_diretorio_bundle() / 'assets' / file_name
+        if not icon_path.exists():
+            return QIcon()
+        return QIcon(str(icon_path))
+
+    def _apply_action_icons(self) -> None:
+        start_icon = self._asset_icon('toolbar_start.svg')
+        pause_icon = self._asset_icon('toolbar_pause.svg')
+        stop_icon = self._asset_icon('toolbar_stop.svg')
+        pin_off_icon = self._asset_icon('toolbar_pin_off.svg')
+        pin_on_icon = self._asset_icon('toolbar_pin_on.svg')
+        self.start_button.setIcon(start_icon)
+        if not start_icon.isNull():
+            self.start_button.setText('')
+            self.start_button.setProperty('iconOnly', True)
+        self.start_button.setToolTip('Iniciar (F1)')
+        self.pause_button.setIcon(pause_icon)
+        if not pause_icon.isNull():
+            self.pause_button.setText('')
+            self.pause_button.setProperty('iconOnly', True)
+        self.pause_button.setToolTip('Pausar (F2)')
+        self.stop_button.setIcon(stop_icon)
+        if not stop_icon.isNull():
+            self.stop_button.setText('')
+            self.stop_button.setProperty('iconOnly', True)
+        self.stop_button.setToolTip('Encerrar app (F3)')
+        self.pin_button.setIcon(pin_off_icon)
+        if not pin_off_icon.isNull() or not pin_on_icon.isNull():
+            self.pin_button.setText('')
+            self.pin_button.setProperty('iconOnly', True)
+        self._pin_icons = {
+            False: pin_off_icon,
+            True: pin_on_icon,
+        }
+
+    def _configure_shortcuts(self) -> None:
+        shortcut_specs = (
+            (1, VK_F1, 'F1', self.start_button),
+            (2, VK_F2, 'F2', self.pause_button),
+            (3, VK_F3, 'F3', self.stop_button),
+        )
+        for hotkey_id, virtual_key, key_name, button in shortcut_specs:
+            registered = self.global_hotkey_manager.register(
+                hotkey_id,
+                virtual_key,
+                lambda target=button: self._trigger_button(target),
+            )
+            if registered:
+                continue
+            shortcut = QShortcut(QKeySequence(key_name), self)
+            shortcut.activated.connect(lambda target=button: self._trigger_button(target))
+            self._fallback_shortcuts.append(shortcut)
+
+    def _trigger_button(self, button: QPushButton) -> None:
+        if button.isEnabled():
+            button.click()
+
     def _handle_pin_toggled(self, pinned: bool) -> None:
+        pin_icon = self._pin_icons[pinned]
+        if not pin_icon.isNull():
+            self.pin_button.setIcon(pin_icon)
         self.pin_button.setToolTip(
             'Posicao bloqueada' if pinned else 'Bloquear a posicao da barra'
         )
@@ -202,9 +274,9 @@ class ToolbarWindow(QWidget):
         self._refresh_status()
 
     def _handle_stop(self) -> None:
-        if not self.automation_service.stop():
-            self._show_error('Nenhuma automacao em execucao para parar.')
-        self._refresh_status()
+        self._stop_requested_by_exit = True
+        self.automation_service.stop()
+        self.close()
 
     def _show_error(self, message: str) -> None:
         if not message or message == self._last_error_message:
@@ -307,5 +379,7 @@ class ToolbarWindow(QWidget):
     def closeEvent(self, event: QCloseEvent) -> None:
         """Para o worker ao fechar manualmente ou junto com o Clash."""
         self._closing = True
-        self.automation_service.stop()
+        self.global_hotkey_manager.unregister_all()
+        if not self._stop_requested_by_exit:
+            self.automation_service.stop()
         super().closeEvent(event)
